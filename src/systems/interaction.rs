@@ -1,4 +1,4 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{input::mouse::{MouseButtonInput, MouseMotion}, prelude::*, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
 
 use crate::map::{MapBundle, MapFeature};
@@ -16,8 +16,24 @@ pub fn handle_keyboard(
 ) {
     if keys.pressed(KeyCode::KeyU) {
         // U is being held down
-
         bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query);
+    }
+}
+
+pub fn handle_mouse(
+    commands: Commands,
+    map_bundle: Query<&mut MapBundle>,
+    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    primary_window_query: Query<&Window, With<PrimaryWindow>>,
+    query: Query<&mut OrthographicProjection, With<Camera>>,
+    mut evr_motion: EventReader<MouseMotion>,
+    buttons: Res<ButtonInput<MouseButton>>,
+) {
+    if buttons.just_pressed(MouseButton::Middle) {
+        
+    } else if buttons.just_released(MouseButton::Middle) {
+            bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query);
     }
 }
 

@@ -230,6 +230,7 @@ pub fn bbox_system(
         if let Ok(mut bundle) = map_bundle.get_single_mut() {
             // Here we need to go through the bounding boxes and check if we have already gotten this bounding box 
             if !bundle.map_points.bounding_boxes.contains(&viewport) {
+                /*
                 let matching_bboxes = bundle.map_points.bounding_boxes
                 .iter()
                 .filter(|bbox| bbox.intersects(&viewport))
@@ -245,6 +246,7 @@ pub fn bbox_system(
                     send_overpass_queries(converted_vec, commands, map_bundle, shapes_query);
                     return;
                 }
+                */
                 // No intersections so just request the whole viewport
                 bundle.map_points.bounding_boxes.push(viewport.clone());
                 let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
