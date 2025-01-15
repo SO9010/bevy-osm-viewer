@@ -8,7 +8,7 @@ pub struct MapPlugin;
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_map)
+        app.add_systems(Startup, (spawn_map, spawn_starting_point).chain())
             .add_systems(Update, (check_map_info, handle_mouse, handle_keyboard));
         if cfg!(debug_assertions) {
             app.add_plugins(FrameTimeDiagnosticsPlugin)

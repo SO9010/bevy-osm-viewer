@@ -1,7 +1,22 @@
 use bevy::{
-    prelude::*,
+    prelude::*, window::PrimaryWindow,
 };
+use bevy_prototype_lyon::entity::Path;
 
+use crate::map::{MapBundle, MapFeature};
+
+use super::bbox_system;
+
+pub fn spawn_starting_point(mut commands: Commands,
+    map_bundle: Query<&mut MapBundle>,
+    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    primary_window_query: Query<&Window, With<PrimaryWindow>>,
+    query: Query<&mut OrthographicProjection, With<Camera>>,
+) 
+{
+    bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query);
+}
 
 // Should be stored in a resource
 pub fn spawn_settings(mut commands: Commands) {

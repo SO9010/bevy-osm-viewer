@@ -54,10 +54,10 @@ pub fn camera_space_to_world_space(
 
             // Compute the world-space rectangle
             // The reason for not dividing by 2 is to make the rectangle larger, as then it will mean that we can load more data
-            let left = camera_translation.x - (window_width * projection.scale) / 1.5;
-            let right = camera_translation.x + (window_width * projection.scale) / 1.5;
-            let bottom = camera_translation.y - (window_height * projection.scale) / 1.5;
-            let top = camera_translation.y + (window_height * projection.scale) / 1.5;
+            let left = camera_translation.x - (window_width * projection.scale);
+            let right = camera_translation.x + (window_width * projection.scale);
+            let bottom = camera_translation.y - (window_height * projection.scale);
+            let top = camera_translation.y + (window_height * projection.scale);
             
             
             return Some(WorldSpaceRect {

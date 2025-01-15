@@ -230,11 +230,16 @@ pub fn bbox_system(
         if let Ok(mut bundle) = map_bundle.get_single_mut() {
             // Here we need to go through the bounding boxes and check if we have already gotten this bounding box 
             if !bundle.map_points.bounding_boxes.contains(&viewport) {
+
+                let bb = bundle.map_points.bounding_boxes.iter().any(|bbox_a| {
+                    bbox_a.left <= viewport.left && bbox_a.right >= viewport.right && bbox_a.top >= viewport.top && bbox_a.bottom <= viewport.bottom
+                });
                 /*
                 let matching_bboxes = bundle.map_points.bounding_boxes
                 .iter()
                 .filter(|bbox| bbox.intersects(&viewport))
                 .collect::<Vec<&WorldSpaceRect>>();
+
                 if !matching_bboxes.is_empty() {
                     info!("Bounding box intersects with another bounding box");
                     info!("Got {} intersections", matching_bboxes.len());
@@ -247,10 +252,14 @@ pub fn bbox_system(
                     return;
                 }
                 */
+                
+                // If anything you have to find a way to see if the bounding box is completly coverlapped.
                 // No intersections so just request the whole viewport
-                bundle.map_points.bounding_boxes.push(viewport.clone());
-                let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
-                send_overpass_query(converted_bounding_box, commands, map_bundle, shapes_query);
+                //if !bb {
+                    bundle.map_points.bounding_boxes.push(viewport.clone());
+                    let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
+                    send_overpass_query(converted_bounding_box, commands, map_bundle, shapes_query);
+                //}
             }
         }
     }

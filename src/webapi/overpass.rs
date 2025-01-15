@@ -1,3 +1,5 @@
+use std::io::{BufRead, BufReader};
+
 use bevy::prelude::*;
 use bevy_prototype_lyon::entity::Path;
 
@@ -19,31 +21,57 @@ pub fn send_overpass_queries(bounds: Vec<WorldSpaceRect>, commands: Commands, mu
             [out:json];
             (
             way["highway"]({},{},{},{}); 
-            // way["building"]({},{},{},{}); 
+            way["building"]({},{},{},{}); 
             );
             (._;>;);
             out body geom;
         "#, bounds.bottom, bounds.right, bounds.top, bounds.left, bounds.bottom, bounds.right, bounds.top, bounds.left);
 
-        // TODO: Need to optimise this: https://users.rust-lang.org/t/optimizing-string-search-code-for-large-files/31992/2 as it crashes if the text file is too large
-        if let Ok(response) = ureq::post(url)
-            .send_string(&query).unwrap()
-            .into_string() {
-            if let Ok(mut mb) = map_bundle.get_single_mut() {
-                if let Ok(features) = get_data_from_string_osm(response.as_str()) {
-                    let new_features: Vec<_> = features.clone()
-                        .into_iter()
-                        .filter(|feature| !mb.features.iter().any(|existing| existing.id.contains(feature.id.as_str())))
-                        .collect();
-                    mb.features.extend(new_features);
+        
+    if let Ok(response) = ureq::post(url).send_string(&query) {
+        if response.status() == 200 {
+            let mut response_body = String::new();
+            let reader = BufReader::new(response.into_reader());
 
-                } else {
-                    info!("Failed to get data from string");
+            // Accumulate chunks into a single string
+            for line in reader.lines() {
+                match line {
+                    Ok(part) => response_body.push_str(&part.as_str()),
+                    Err(e) => {
+                        info!("Error reading response: {}", e);
+                        return;
+                    }
+                }
+            }
+
+            // Deserialize the accumulated string
+            match get_data_from_string_osm(&response_body) {
+                Ok(features) => {
+                    if let Ok(mut map_bundle) = map_bundle.get_single_mut() {
+                        let new_features: Vec<_> = features
+                            .into_iter()
+                            .filter(|feature| {
+                                !map_bundle
+                                    .features
+                                    .iter()
+                                    .any(|existing| existing.id.contains(&feature.id))
+                            })
+                            .collect();
+
+                        info!("Got {} new features", new_features.len());
+                        map_bundle.features.extend(new_features);
+                    }
+                }
+                Err(e) => {
+                    info!("Failed to parse response: {}", e);
                 }
             }
         } else {
-            info!("Failed to get response from Overpass API... Assume the response was too large");
+            info!("Failed to get a successful response from Overpass API.");
         }
+    } else {
+        info!("Failed to query Overpass API.");
+    }
     }
     respawn_map(commands, shapes_query, map_bundle);
 }
@@ -59,7 +87,7 @@ pub fn send_overpass_query(bounds: WorldSpaceRect, commands: Commands, mut map_b
         [out:json];
         (
         way["highway"]({},{},{},{}); 
-        //way["building"]({},{},{},{}); 
+        // way["building"]({},{},{},{}); 
         );
         (._;>;);
         out body geom;
@@ -67,56 +95,50 @@ pub fn send_overpass_query(bounds: WorldSpaceRect, commands: Commands, mut map_b
     
     info!("Query: {}", query);
     
-    // TODO: Need to optimise this: https://users.rust-lang.org/t/optimizing-string-search-code-for-large-files/31992/2 as it crashes if the text file is too large
-    if let Ok(response) = ureq::post(url)
-        .send_string(&query).unwrap()
-        .into_string() {
-        if let Ok(mut map_bundle) = map_bundle.get_single_mut() {
-            if let Ok(features) = get_data_from_string_osm(response.as_str()) {
-                let new_features: Vec<_> = features.clone()
-                    .into_iter()
-                    .filter(|feature| !map_bundle.features.iter().any(|existing| existing.id.contains(feature.id.as_str())))
-                    .collect();
-                
-                info!("got {}", new_features.len());
-                map_bundle.features.extend(new_features);
-            } else {
-                info!("Failed to get data from string");
+    if let Ok(response) = ureq::post(url).send_string(&query) {
+        if response.status() == 200 {
+            let mut response_body = String::new();
+            let reader = BufReader::new(response.into_reader());
+
+            // Accumulate chunks into a single string
+            for line in reader.lines() {
+                match line {
+                    Ok(part) => response_body.push_str(&part.as_str()),
+                    Err(e) => {
+                        info!("Error reading response: {}", e);
+                        return;
+                    }
+                }
             }
-        }
-        } else {
-            info!("Failed to get response from Overpass API... Assume the response was too large");
-        }
 
-    respawn_map(commands, shapes_query, map_bundle);
-}
+            // Deserialize the accumulated string
+            match get_data_from_string_osm(&response_body) {
+                Ok(features) => {
+                    if let Ok(mut map_bundle) = map_bundle.get_single_mut() {
+                        let new_features: Vec<_> = features
+                            .into_iter()
+                            .filter(|feature| {
+                                !map_bundle
+                                    .features
+                                    .iter()
+                                    .any(|existing| existing.id.contains(&feature.id))
+                            })
+                            .collect();
 
-pub fn get_road_data(commands: Commands, mut map_bundle: Query<&mut MapBundle>,
-    // need to convert from OSM to geojson!!!
-    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,) {
-    let query = r#"
-        [out:json];
-        (
-        way["highway"="primary"](52.0,0.145,52.195,0.154); 
-        );
-        (._;>;);
-        out body geom;
-    "#;
-    
-    let url = "https://overpass-api.de/api/interpreter";
-    info!("Querying Overpass API...");
-    let response = ureq::post(url)
-        .send_string(query).unwrap()
-        .into_string().unwrap();
-    
-    if let Ok(mut map_bundle) = map_bundle.get_single_mut() {
-        if let Ok(features) = get_data_from_string_osm(response.as_str()) {
-            info!("got {}", features.len());
-            map_bundle.features.extend(features);
-            
+                        info!("Got {} new features", new_features.len());
+                        map_bundle.features.extend(new_features);
+                    }
+                }
+                Err(e) => {
+                    info!("Failed to parse response: {}", e);
+                }
+            }
         } else {
-            info!("Failed to get data from string");
+            info!("Failed to get a successful response from Overpass API.");
         }
+    } else {
+        info!("Failed to query Overpass API.");
     }
+
     respawn_map(commands, shapes_query, map_bundle);
 }
