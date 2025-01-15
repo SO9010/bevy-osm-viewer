@@ -1,0 +1,72 @@
+use bevy::{core_pipeline::bloom::Bloom, prelude::*, window::PrimaryWindow};
+use bevy_pancam::{DirectionKeys, PanCam};
+
+use crate::map::WorldSpaceRect;
+
+use super::orientation::CameraRotation;
+
+pub fn setup_camera(mut commands: Commands) {
+    commands.spawn((
+        Camera2d,
+        Camera {
+            hdr: true, // HDR is required for the bloom effect
+            ..default()
+        },
+        PanCam {
+            grab_buttons: vec![MouseButton::Middle], // which buttons should drag the camera
+            move_keys: DirectionKeys {      // the keyboard buttons used to move the camera
+                up:    vec![KeyCode::ArrowUp], // initalize the struct like this or use the provided methods for
+                down:  vec![KeyCode::ArrowDown], // common key combinations
+                left:  vec![KeyCode::ArrowLeft],
+                right: vec![KeyCode::ArrowRight],
+            },
+            speed: 400., // the speed for the keyboard movement
+            enabled: true, // when false, controls are disabled. See toggle example.
+            zoom_to_cursor: true, // whether to zoom towards the mouse or the center of the screen
+            min_scale: 0.25, // prevent the camera from zooming too far in
+            max_scale: 40., // prevent the camera from zooming too far out
+            min_x: f32::NEG_INFINITY, // minimum x position of the camera window
+            max_x: f32::INFINITY, // maximum x position of the camera window
+            min_y: f32::NEG_INFINITY, // minimum y position of the camera window
+            max_y: f32::INFINITY, // maximum y position of the camera window
+        },
+        Bloom::NATURAL,
+        CameraRotation::default(),
+    ));
+}
+
+
+pub fn camera_space_to_world_space(
+    camera_query: &Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    primary_window_query: &Query<&Window, With<PrimaryWindow>>,
+    mut query: Query<&mut OrthographicProjection, With<Camera>>,
+) -> Option<WorldSpaceRect> {
+    if let Ok((_, transform)) = camera_query.get_single() {
+        if let Ok(window) = primary_window_query.get_single() {
+            let projection = query.single_mut();
+
+            // Get the window size
+            let window_width = window.width();
+            let window_height = window.height();
+
+            // Get the camera's position
+            let camera_translation = transform.translation();
+
+            // Compute the world-space rectangle
+            // The reason for not dividing by 2 is to make the rectangle larger, as then it will mean that we can load more data
+            let left = camera_translation.x - (window_width * projection.scale) / 1.5;
+            let right = camera_translation.x + (window_width * projection.scale) / 1.5;
+            let bottom = camera_translation.y - (window_height * projection.scale) / 1.5;
+            let top = camera_translation.y + (window_height * projection.scale) / 1.5;
+            
+            
+            return Some(WorldSpaceRect {
+                left,
+                right,
+                bottom,
+                top,
+            });
+        }
+    }
+    None
+}
