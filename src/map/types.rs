@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use super::projection::lat_lon_to_mercator;
+use rstar::{RTree, RTreeObject, AABB};
 
 // E.g Cambridge as the Starting point, make this a global entity/constant
 pub const STARTING_LONG_LAT: Vec2 = Vec2::new(0.1494117, 52.192_37);
@@ -28,7 +29,6 @@ impl RefrencePoint {
         Vec2::new(self.long, self.lat)
     }
 }
-
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct WorldSpaceRect {
     pub left: f32,
@@ -38,37 +38,42 @@ pub struct WorldSpaceRect {
 }
 
 impl WorldSpaceRect {
-    pub fn intersects(&self, other: &WorldSpaceRect) -> bool {
-        self.left < other.right && self.right > other.left && self.bottom < other.top && self.top > other.bottom
-    }
-    // This will split the current rect into multiple rects, it really struggles with getting anyhting if it is overflowing to the left.
-    pub fn split(&self, other: &WorldSpaceRect) -> Option<Vec<WorldSpaceRect>> {
-        if !self.intersects(other) {
-            return None;
+    // This will split the current rect into multiple rects, it really struggles with getting anything if it is overflowing to the left.
+    pub fn split(&self, rects: Vec<WorldSpaceRect>) -> Option<Vec<WorldSpaceRect>> {
+        let mut result = vec![self.clone()];
+
+        for rect in rects {
+            let mut new_result = Vec::new();
+            for r in result {
+                if let Some(mut split_rects) = r.split_single(&rect) {
+                    new_result.append(&mut split_rects);
+                } else {
+                    new_result.push(r);
+                }
+            }
+            result = new_result;
         }
 
+        Some(result)
+    }
+
+    pub fn split_single(&self, rect: &WorldSpaceRect) -> Option<Vec<WorldSpaceRect>> {
         let mut result = Vec::new();
 
-        // Define the intersection boundaries
-        let left = self.left.max(other.left);
-        let right = self.right.min(other.right);
-        let bottom = self.bottom.max(other.bottom);
-        let top = self.top.min(other.top);
-
         // Add the left region
-        if self.left < left {
+        if self.left < rect.left {
             result.push(WorldSpaceRect {
                 left: self.left,
-                right: left,
+                right: rect.left,
                 bottom: self.bottom,
                 top: self.top,
             });
         }
 
         // Add the right region
-        if self.right > right {
+        if self.right > rect.right {
             result.push(WorldSpaceRect {
-                left: right,
+                left: rect.right,
                 right: self.right,
                 bottom: self.bottom,
                 top: self.top,
@@ -76,32 +81,90 @@ impl WorldSpaceRect {
         }
 
         // Add the bottom region
-        if self.bottom < bottom {
+        if self.bottom < rect.bottom {
             result.push(WorldSpaceRect {
-                left,
-                right,
+                left: rect.left,
+                right: rect.right,
                 bottom: self.bottom,
-                top: bottom,
+                top: rect.bottom,
             });
         }
 
         // Add the top region
-        if self.top > top {
+        if self.top > rect.top {
             result.push(WorldSpaceRect {
-                left,
-                right,
-                bottom: top,
+                left: rect.left,
+                right: rect.right,
+                bottom: rect.top,
                 top: self.top,
             });
         }
 
-        Some(result)
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+}
+
+impl RTreeObject for WorldSpaceRect {
+    type Envelope = AABB<[f32; 2]>;
+
+    fn envelope(&self) -> Self::Envelope {
+        AABB::from_corners([self.left, self.bottom], [self.right, self.top])
+    }
+}
+
+#[derive(Component, Clone, Debug)]
+pub struct SpatialIndex {
+    rtree: RTree<WorldSpaceRect>,
+}
+
+impl SpatialIndex {
+    pub fn new() -> Self {
+        SpatialIndex {
+            rtree: RTree::new(),
+        }
+    }
+
+    pub fn insert(&mut self, rect: WorldSpaceRect) {
+        self.rtree.insert(rect);
+    }
+
+    pub fn insert_vec(&mut self, rect: Vec<WorldSpaceRect>) {
+        for rect in rect {
+            self.rtree.insert(rect);
+        }
+    }
+
+    pub fn query(&self, rect: &WorldSpaceRect) -> Vec<&WorldSpaceRect> {
+        self.rtree.locate_in_envelope_intersecting(&rect.envelope()).collect()
+    }
+
+    pub fn split(&self, rect: &WorldSpaceRect) -> Vec<WorldSpaceRect> {
+        let r2: Vec<WorldSpaceRect> = self.rtree.locate_in_envelope_intersecting(&rect.envelope()).cloned().collect();
+        if !r2.is_empty() {
+            rect.split(r2).unwrap()
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub fn is_covered(&self, rect: &WorldSpaceRect) -> bool {
+     //   let mut result = rect.clone();
+     //   self.rtree.locate_in_envelope_intersecting(&result.envelope()).into_iter().all(|r| {
+           //  result = result.split(r).unwrap();
+    //        true
+   //     });
+
+        false   
     }
 }
 
 #[derive(Component, Clone, Debug)]
 pub struct MapPoints {
-    pub bounding_boxes: Vec<WorldSpaceRect>, // Bounding box of the map, this will be what will be used to select a section of the map to load. It is a polygon of longs and lats
+    pub spatial_index: SpatialIndex,
     pub refrencee_point: RefrencePoint, // Refrence point of the map, this is used to calculate the scale and offset
 }
 
@@ -120,8 +183,8 @@ impl MapBundle {
         Self {
             features: Vec::new(),
             map_points: MapPoints {
-                bounding_boxes: Vec::new(),
                 refrencee_point: RefrencePoint::new(long, lat),
+                spatial_index: SpatialIndex::new(),
             },
             scale,
         }

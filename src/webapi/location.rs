@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+/*
 
 #[derive(Component, Default)]
 pub struct Loc {
@@ -32,3 +32,4 @@ fn get_loc() -> Result<Loc, ureq::Error> {
         longitude,
     })
 }
+    */

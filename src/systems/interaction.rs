@@ -1,9 +1,10 @@
-use bevy::{input::mouse::{MouseButtonInput, MouseMotion, MouseWheel}, prelude::*, window::PrimaryWindow};
+use bevy::{prelude::*, window::PrimaryWindow};
+use bevy_pancam::PanCam;
 use bevy_prototype_lyon::prelude::*;
 
 use crate::map::{MapBundle, MapFeature};
 
-use super::bbox_system;
+use super::{bbox_system, OccupiedScreenSpace, SettingsOverlay};
 
 pub fn handle_keyboard(
     keys: Res<ButtonInput<KeyCode>>,
@@ -13,10 +14,11 @@ pub fn handle_keyboard(
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     primary_window_query: Query<&Window, With<PrimaryWindow>>,
     query: Query<&mut OrthographicProjection, With<Camera>>,
+    overpass_settings: ResMut<SettingsOverlay>,
 ) {
     if keys.pressed(KeyCode::KeyU) {
         // U is being held down
-        bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query);
+        bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query, overpass_settings);
     }
 }
 
@@ -28,10 +30,25 @@ pub fn handle_mouse(
     primary_window_query: Query<&Window, With<PrimaryWindow>>,
     query: Query<&mut OrthographicProjection, With<Camera>>,
     buttons: Res<ButtonInput<MouseButton>>,
+    overpass_settings: ResMut<SettingsOverlay>,
+    q_windows: Query<&Window, With<PrimaryWindow>>,
+    occupied_screen_space: Res<OccupiedScreenSpace>,
+    mut q_pancam: Query<&mut PanCam>,
 ) {
     if buttons.just_pressed(MouseButton::Middle) {
     } else if buttons.just_released(MouseButton::Middle) {
-        bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query);
+        bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query, overpass_settings);
+    }
+    if let Some(position) = q_windows.single().cursor_position() {
+        if position.x <= (occupied_screen_space.left + 15.) {
+            for mut pancam in &mut q_pancam {
+                pancam.enabled = false;
+        }
+        } else {
+            for mut pancam in &mut q_pancam {
+                pancam.enabled = true;
+            }
+        }
     }
 }
 

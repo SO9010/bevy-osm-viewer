@@ -3,7 +3,14 @@ use bevy_pancam::{DirectionKeys, PanCam};
 
 use crate::map::WorldSpaceRect;
 
-use super::orientation::CameraRotation;
+use super::{orientation::CameraRotation, SettingsOverlay};
+
+
+
+#[derive(Resource)]
+pub struct CameraSettings {
+    pub scale: f32,
+}
 
 pub fn setup_camera(mut commands: Commands) {
     commands.spawn((
@@ -35,6 +42,42 @@ pub fn setup_camera(mut commands: Commands) {
     ));
 }
 
+pub fn camera_change(
+    mut camera_settings: ResMut<CameraSettings>,
+    mut query: Query<&mut OrthographicProjection, With<Camera>>,
+    mut overpass_settings: ResMut<SettingsOverlay>,
+) {
+    let projection = query.single_mut();
+    if projection.is_changed() {
+        camera_settings.scale = projection.scale;
+        if camera_settings.scale > 3.5 {
+            if let Some(category) = overpass_settings.categories.get_mut("Building") {
+                category.all = false;
+            }
+        } else if let Some(category) = overpass_settings.categories.get_mut("Building") {
+            if !category.all {
+                category.all = true;
+            }
+        }
+        if camera_settings.scale > 10.0 {
+            if let Some(category) = overpass_settings.categories.get_mut("Highway") {
+                category.all = false;
+                if let Some(item) = category.items.get_mut("motorway") {
+                    *item = false;
+                }
+                if let Some(item) = category.items.get_mut("bus_guideway") {
+                    *item = false;
+                }
+                if let Some(item) = category.items.get_mut("primary") {
+                    *item = false;
+                }
+                if let Some(item) = category.items.get_mut("secondary") {
+                    *item = false;
+                }
+            }
+        } 
+    }
+}
 
 pub fn camera_space_to_world_space(
     camera_query: &Query<(&Camera, &GlobalTransform), With<Camera2d>>,

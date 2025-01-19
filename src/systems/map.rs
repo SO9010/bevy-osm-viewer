@@ -1,10 +1,9 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
 
-use crate::{map::{world_space_rect_to_lat_long, MapBundle, MapFeature, WorldSpaceRect, SCALE, STARTING_LONG_LAT}, webapi::{send_overpass_queries, send_overpass_query}};
+use crate::{map::{world_space_rect_to_lat_long, MapBundle, MapFeature, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
 
-use super::camera_space_to_world_space;
-// TODO: look at this: https://www.reddit.com/r/bevy/comments/1dfvmba/how_can_i_link_an_entity_to_a_specific/
+use super::{camera_space_to_world_space, SettingsOverlay};
 pub fn spawn_map(mut commands: Commands) {
     let map_bundle: MapBundle = MapBundle::new(STARTING_LONG_LAT.x, STARTING_LONG_LAT.y, SCALE);
     commands.spawn(map_bundle);
@@ -218,49 +217,29 @@ pub fn bbox_system(
     primary_window_query: &Query<&Window, With<PrimaryWindow>>,
     query: Query<&mut OrthographicProjection, With<Camera>>,
     shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    overpass_settings: ResMut<SettingsOverlay>,
 ) {
-    // Ok so we want to get the camera space taken up on the screen, this will then be used to get the bounding box
-    // However, we dont want to grab this multiple times, so we will need to check multiple things,
-    // 2. If we have already gotten this bounding box, or if we have a section of the screen that is already covered 
-    // 3. We want to get a bounding box which is a bit bigger than the screen so that we get smooth movement.
-    // 4. We need to make a max size that we can queery for or we need to consider optimisation, such as dififerent weights for the roads depending on the size of the screen.
-    // 5. We want to chunk it because when it gets too big it will take a long time to load and it will actually crash.
     if let Some(viewport) = camera_space_to_world_space(camera_query, primary_window_query, query) {
-        // Converted to long and lat
         if let Ok(mut bundle) = map_bundle.get_single_mut() {
             // Here we need to go through the bounding boxes and check if we have already gotten this bounding box 
-            if !bundle.map_points.bounding_boxes.contains(&viewport) {
-
-                let bb = bundle.map_points.bounding_boxes.iter().any(|bbox_a| {
-                    bbox_a.left <= viewport.left && bbox_a.right >= viewport.right && bbox_a.top >= viewport.top && bbox_a.bottom <= viewport.bottom
-                });
-                /*
-                let matching_bboxes = bundle.map_points.bounding_boxes
-                .iter()
-                .filter(|bbox| bbox.intersects(&viewport))
-                .collect::<Vec<&WorldSpaceRect>>();
-
-                if !matching_bboxes.is_empty() {
-                    info!("Bounding box intersects with another bounding box");
-                    info!("Got {} intersections", matching_bboxes.len());
-                    // Filter through multiple times to ensure no duplicates
-                    let split_viewports = matching_bboxes.iter().flat_map(|bbox| viewport.split(bbox).unwrap()).collect::<Vec<WorldSpaceRect>>();
-                    
-                    bundle.map_points.bounding_boxes.extend(split_viewports.clone());
-                    let converted_vec = split_viewports.iter().map(|viewport| world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y)).collect();
-                    send_overpass_queries(converted_vec, commands, map_bundle, shapes_query);
-                    return;
-                }
-                */
-                
-                // If anything you have to find a way to see if the bounding box is completly coverlapped.
-                // No intersections so just request the whole viewport
-                //if !bb {
-                    bundle.map_points.bounding_boxes.push(viewport.clone());
+            if !bundle.map_points.spatial_index.is_covered(&viewport) {
+                //let split_viewports = bundle.map_points.spatial_index.split(&viewport.clone());
+                //if split_viewports.is_empty() {
+                    bundle.map_points.spatial_index.insert(viewport.clone());
                     let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
-                    send_overpass_query(converted_bounding_box, commands, map_bundle, shapes_query);
+                    get_overpass_data(vec![converted_bounding_box], commands, map_bundle, shapes_query, overpass_settings);    
+                //} else {
+                //    bundle.map_points.spatial_index.insert_vec(split_viewports.clone());
+                //    let converted_vec = split_viewports.iter()
+                //        .map(|viewport| world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y))
+                //        .collect::<Vec<_>>();
+                //    get_overpass_data(converted_vec, commands, map_bundle, shapes_query);
                 //}
             }
+        } else {
+            error!("Failed to get mutable reference to map_bundle");
         }
+    } else {
+        error!("Failed to convert camera space to world space");
     }
 }
