@@ -70,8 +70,6 @@ pub fn respawn_map(mut commands: Commands, shapes_query: Query<(Entity, &Path, &
                 };
                 
                 if feature.properties.get("landuse").is_some() {
-                    // Hide for now, it looks quite messy, we should have a menu on the side to select what to show.
-                    /*
                     commands.spawn((
                         ShapeBundle {
                             path: GeometryBuilder::build_as(&shape),
@@ -98,7 +96,6 @@ pub fn respawn_map(mut commands: Commands, shapes_query: Query<(Entity, &Path, &
                         ));
                         
                     });
-                    */
                 } else if feature.properties.get("sport").is_some() {
                     commands.spawn((
                         ShapeBundle {
