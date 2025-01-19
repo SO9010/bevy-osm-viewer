@@ -50,6 +50,7 @@ pub fn camera_change(
     let projection = query.single_mut();
     if projection.is_changed() {
         camera_settings.scale = projection.scale;
+        // TODO: Not very conviced by this, find a wayy better way of doing it!
         if camera_settings.scale > 3.5 {
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
                 category.all = false;

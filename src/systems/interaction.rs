@@ -1,4 +1,5 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{prelude::*, utils::HashMap, window::PrimaryWindow};
+use bevy_egui::{egui, EguiContexts};
 use bevy_pancam::PanCam;
 use bevy_prototype_lyon::prelude::*;
 
@@ -22,6 +23,7 @@ pub fn handle_keyboard(
     }
 }
 
+/// Handles mouse input and updates camera and map features accordingly.
 pub fn handle_mouse(
     commands: Commands,
     map_bundle: Query<&mut MapBundle>,
@@ -52,16 +54,32 @@ pub fn handle_mouse(
     }
 }
 
+#[derive(Resource)]
+pub struct PersistentInfoWindows {
+    pub windows: HashMap<String, String>,
+}
+
+impl Default for PersistentInfoWindows {
+    fn default() -> Self {
+        PersistentInfoWindows {
+            windows: HashMap::new(),
+        }
+    }
+}
+
+/// Checks map information based on mouse input and camera view.
 pub fn check_map_info(
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     shapes: Query<(&Path, &GlobalTransform, &MapFeature)>,
     mouse_button: Res<ButtonInput<MouseButton>>,
+    mut contexts: EguiContexts,
+    mut persistent_info_windows: ResMut<PersistentInfoWindows>,
 ) {
     if mouse_button.just_pressed(MouseButton::Left) {
         let (camera, camera_transform) = camera.single();
         let window = windows.single();
-        
+
         if let Some(cursor_pos) = window.cursor_position() {
             let world_position = camera.viewport_to_world_2d(camera_transform, cursor_pos).unwrap();
             for (path, _transform, feat) in shapes.iter() {
@@ -76,12 +94,32 @@ pub fn check_map_info(
                     };
                 }
                 if is_point_in_polygon(&world_position, vertices) {
-                    println!("Clicked on shape at position: {:?}", feat.properties);
+                    egui::Window::new(feat.id.to_string()).show(contexts.ctx_mut(), |ui| {
+                        ui.label(feat.properties.to_string());
+                    });
+                    persistent_info_windows.windows.insert(
+                        feat.id.to_string(),
+                        feat.properties.to_string(),
+                    );
+                
                     // You can add additional logic here to handle the clicks
                     break;
                 }
             }
         }
+    }
+    let mut windows_to_remove = Vec::new();
+    for (id, window_state) in persistent_info_windows.windows.iter() {
+        egui::Window::new(id.clone())
+        .show(contexts.ctx_mut(), |ui| {
+            ui.label(&window_state.to_string());
+            if ui.button("Close").clicked() {
+                windows_to_remove.push(id.clone());
+            }
+        });
+    }
+    for id in windows_to_remove {
+        persistent_info_windows.windows.remove(&id);
     }
 }
 

@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use super::MapFeature;
 
+// TODO: MAKE THIS BETTER NEXT, have it so users can define their own colours
+/// Parses OSM data from a string and returns a vector of map features.
 pub fn get_data_from_string_osm(data: &str) -> Result<Vec<MapFeature>, Box<dyn std::error::Error>> {
     let response: OverpassResponse = serde_json::from_str(data)?;
 
@@ -38,7 +40,7 @@ pub fn get_data_from_string_osm(data: &str) -> Result<Vec<MapFeature>, Box<dyn s
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OverpassResponse {
+struct OverpassResponse {
     pub version: Option<f64>,
     pub generator: Option<String>,
     pub osm3s: Option<Osm3s>,
@@ -47,7 +49,7 @@ pub struct OverpassResponse {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Osm3s {
+struct Osm3s {
     #[serde(rename = "timestamp_osm_base")]
     pub timestamp_osm_base: Option<String>,
     #[serde(rename = "timestamp_areas_base")]
@@ -57,7 +59,7 @@ pub struct Osm3s {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Section {
+struct Section {
     #[serde(rename = "type")]
     pub type_field: String,
     pub id: i64,
@@ -74,7 +76,7 @@ pub struct Section {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Bounds {
+struct Bounds {
     pub minlat: f64,
     pub minlon: f64,
     pub maxlat: f64,
@@ -83,23 +85,7 @@ pub struct Bounds {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Geometry {
+struct Geometry {
     pub lat: f64,
     pub lon: f64,
-}
-
-
-#[derive(Debug, Deserialize)]
-struct Way {
-    #[serde(rename = "type")]
-    way_type: String,
-    id: u64,
-    geometry: Option<Vec<Coordinates>>,
-    tags: serde_json::Value,
-}
-
-#[derive(Debug, Deserialize)]
-struct Coordinates {
-    lat: f64,
-    lon: f64,
 }

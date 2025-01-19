@@ -42,7 +42,7 @@ Bevy OSM Viewer is a simple application which displays OSM data using bevy.
 ## Up-coming features
 
 - [ ] Smooth data download and dispaly
-- [ ] Data filtering
+- [x] Data filtering
 - [ ] Rotation
 - [ ] User location as base map lon and lat
 - [ ] Custom user settings

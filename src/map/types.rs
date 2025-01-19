@@ -168,13 +168,18 @@ pub struct MapPoints {
     pub refrencee_point: RefrencePoint, // Refrence point of the map, this is used to calculate the scale and offset
 }
 
+
+/// Represents a bundle of components related to a map. The justification for not making a reasorce is as in the future I may want to have multiple maps in a split screen
 #[derive(Component, Clone, Debug)]
 pub struct MapBundle {
+    /// A collection of map features.
     pub features: Vec<MapFeature>,
 
-    pub map_points: MapPoints, // Map points of the map, this is used to calculate the scale and offset
+    /// Map points of the map, this is used to calculate the scale and offset
+    pub map_points: MapPoints,
 
-    pub scale: f32, // Global scale for rendering (used for Mercator projection)
+    /// Global scale for rendering (used for Mercator projection)
+    pub scale: f32,
 }
 
 
