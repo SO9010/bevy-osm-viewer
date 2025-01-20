@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use bevy::prelude::*;
+use bevy_egui::egui::{self, Color32};
 
 
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct SettingsOverlay {
     pub categories: BTreeMap<String, Category>,
 }
@@ -14,12 +15,12 @@ pub struct Category {
     pub all: bool,                      // Toggle all to be on
     pub none: bool,                     // Toggle all to be off
     pub disabled: bool,                 // Make it so they are all disabled
-    pub items: BTreeMap<String, bool>,  // Maps sub-category names to their state
+    pub items: BTreeMap<String, (bool, egui::Color32)>,  // Maps sub-category names to their state
 }
 
 impl Category {
     pub fn set_children(&mut self, on_or_off: bool) {
-        for (_, toggle) in self.items.iter_mut() {
+        for (_, (toggle, _)) in self.items.iter_mut() {
             *toggle = on_or_off;
         } 
     }
@@ -857,7 +858,7 @@ impl SettingsOverlay {
     pub fn add_category(&mut self, name: &str, items: Vec<&str>) {
         let mut category = Category::default();
         for item in items {
-            category.items.insert(item.to_string(), false);
+            category.items.insert(item.to_string(), (false, Color32::from_rgb(211, 221, 221)));
         }
         self.categories.insert(name.to_string(), category);
     }
@@ -873,12 +874,23 @@ impl SettingsOverlay {
                 } else {
                     category.items.iter()
                     .filter_map(move |(item_name, &value)| {
-                        if value {
+                        if value.0 {
                             Some((category_name.clone(), item_name.clone()))
                         } else {
                             None
                         }
                     }).collect::<Vec<_>>()
+                }
+            }).collect::<Vec<_>>()
+    }
+
+    pub fn get_disabled_categories(&self) -> Vec<String> {
+        self.categories.iter()
+            .filter_map(|(category_name, category)| {
+                if category.disabled {
+                    Some(category_name.clone())
+                } else {
+                    None
                 }
             }).collect::<Vec<_>>()
     }

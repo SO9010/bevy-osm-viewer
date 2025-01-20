@@ -1,6 +1,7 @@
 use bevy::prelude::*;
-use bevy_egui::{egui::{self, Checkbox, Color32, RichText}, EguiContexts};
+use bevy_egui::{egui::{self, color_picker::{color_edit_button_rgb, color_edit_button_rgba, color_edit_button_srgba, color_picker_color32}, Checkbox, Color32, RichText}, EguiContexts};
 use bevy_prototype_lyon::entity::Path;
+use crate::systems::settings::egui::color_picker::Alpha::Opaque;
 
 use crate::map::MapFeature;
 
@@ -31,7 +32,7 @@ fn ui_example_system(
     mut contexts: EguiContexts,
     mut occupied_screen_space: ResMut<OccupiedScreenSpace>,
     mut overpass_settings: ResMut<SettingsOverlay>,
-    mut shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
     mut commands: Commands
 ) {
     let ctx = contexts.ctx_mut();
@@ -51,7 +52,6 @@ fn ui_example_system(
                         color = Color32::from_rgb(221, 221, 221);
                     }
                     ui.collapsing(RichText::new(category_name).color(color), |ui| {
-                        // All/None toggles
                         ui.horizontal(|ui| {
                             if ui.checkbox(&mut category.all.clone(), RichText::new("All").color(color)).clicked() {
                                 if category.all {
@@ -78,11 +78,14 @@ fn ui_example_system(
                         });
         
                         // Individual toggles
-                        for (item_name, state) in &mut category.items {
-                            if ui.checkbox(state, RichText::new(item_name).color(color)).clicked() {
-                                category.all = false;
-                                category.none = false;
-                            }
+                        for (item_name, (state, clr)) in &mut category.items {
+                            ui.horizontal(|ui| {
+                                if ui.checkbox(state , RichText::new(item_name).color(color)).clicked() {
+                                    category.all = false;
+                                    category.none = false;
+                                }
+                                color_edit_button_srgba(ui, clr, Opaque)
+                            });
                         }
                     });
                 }
@@ -99,15 +102,4 @@ fn ui_example_system(
         .response
         .rect
         .width();
-}
-
-// Need to make a new type of widget, which you can right click to choose a new colour for the checkbox
-fn componenet_checkbox(ui: &mut egui::Ui, state: &mut bool, text: &str, color: egui::Color32, enabled: bool) {
-    //let mut checkbox = Checkbox::new(&mut state, "All");
-    //checkbox = checkbox.text_color(egui::Color32::from_rgb(255, 0, 0)); // Set the text color to red
-
-    //if ui.add(checkbox).clicked() && !category.disabled {
-        // Your logic here
-    //}
-    
 }

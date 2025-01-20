@@ -6,30 +6,27 @@ use crossbeam_channel::bounded;
 
 use crate::{map::{get_data_from_string_osm, MapBundle, MapFeature, WorldSpaceRect}, systems::{respawn_map, SettingsOverlay}};
 
-pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: ResMut<SettingsOverlay>) -> String {
+pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &ResMut<SettingsOverlay> ) -> String {
     let mut query = String::default();
     let opening = "[out:json];(";
     let closing = ");(._;>;);\nout body geom;";
 
     for bound in bounds {
-        let mut category_disabled = false;
         for (category, key) in overpass_settings.get_true_keys_with_category() {
-            if !category_disabled {
-                if key == "n/a" {
-                    category_disabled = true;
-                } else if key == "*" {
-                    query.push_str(&format!(r#"
-                    (
-                    way["{}"]({},{},{},{}); 
-                    );
-                    "#, category.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
-                } else {
-                    query.push_str(&format!(r#"
-                    (
-                    way["{}"="{}"]({},{},{},{}); 
-                    );
-                    "#, category.to_lowercase(), key.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
-                }
+            if key == "n/a" {
+                continue;
+            } else if key == "*" {
+                query.push_str(&format!(r#"
+                (
+                way["{}"]({},{},{},{}); 
+                );
+                "#, category.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
+            } else {
+                query.push_str(&format!(r#"
+                (
+                way["{}"="{}"]({},{},{},{}); 
+                );
+                "#, category.to_lowercase(), key.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
             }
         }
     }
@@ -50,15 +47,16 @@ pub fn get_overpass_data(bounds: Vec<WorldSpaceRect>, commands: Commands, map_bu
     if bounds.is_empty() {
         return;
     }
-    let query = build_overpass_query(bounds, overpass_settings);
+    let query = build_overpass_query(bounds, &overpass_settings);
     if query != "ERR" {
-        send_overpass_query(query, commands, map_bundle, shapes_query);
+        send_overpass_query(query, commands, map_bundle, shapes_query, overpass_settings);
     }
 }
 
 // TODO: PLEASE OH PLEASE MAKE THIS MULTITHREADED WITH ASYNC!
 pub fn send_overpass_query(query: String, commands: Commands, mut map_bundle: Query<&mut MapBundle>,
     shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    overpass_settings: ResMut<SettingsOverlay>,
 ) {
     if query.is_empty() {
         return;
@@ -122,7 +120,7 @@ pub fn send_overpass_query(query: String, commands: Commands, mut map_bundle: Qu
             }
         }
 
-        respawn_map(commands, shapes_query, map_bundle);
+        respawn_map(commands, shapes_query, map_bundle, overpass_settings);
     }
 }
 

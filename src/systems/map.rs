@@ -1,4 +1,6 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use std::collections::HashSet;
+
+use bevy::{prelude::*, text::cosmic_text::ttf_parser::feat, utils::HashMap, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
 
 use crate::{map::{world_space_rect_to_lat_long, MapBundle, MapFeature, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
@@ -9,180 +11,105 @@ pub fn spawn_map(mut commands: Commands) {
     commands.spawn(map_bundle);
 }
 
-pub fn respawn_map(mut commands: Commands, shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>, mut map_bundle: Query<&mut MapBundle>,) {
+pub fn respawn_map(
+    mut commands: Commands,
+    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    mut map_bundle: Query<&mut MapBundle>,
+    overpass_settings: ResMut<SettingsOverlay>,
+) {
     for (entity, _, _, _) in shapes_query.iter() {
         commands.entity(entity).despawn_recursive(); // Use despawn_recursive instead of despawn
-    }        
-    // I think this spawns far too many entityies!
+    }
+
     if let Ok(map_bundle) = map_bundle.get_single_mut() {
+        let disabled_setting: HashSet<String> = overpass_settings.get_disabled_categories().into_iter().collect();
+        let enabled_setting = overpass_settings.get_true_keys_with_category();
+
+        // Group features by category and key, the string is thing to look for
+        let mut feature_groups: HashMap<String, Vec<&MapFeature>> = HashMap::new();
+
         for feature in &map_bundle.features {
-            for line in &feature.road {
-                
-                let points: Vec<_> = line
-                    .iter()
-                    .map(|point| {
-                        let projected = map_bundle.lat_lon_to_mercator(point.y, point.x);
-                        Vec2::new(projected.x, projected.y)
-                    })
-                    .collect();
+            for (cat, key) in &enabled_setting {
+                if !disabled_setting.contains(&cat.to_lowercase()) {
+                    let key = if key == "*" { cat.clone() } else { format!("\"{}\":\"{}\"", cat.to_lowercase(), key.to_lowercase()) };
+                    feature_groups.entry(key).or_default().push(feature);
+                }
+            }
+        }
 
-                let shape = shapes::Polygon {
-                    points: points.clone(),
-                    closed: false,
-                };
+        for (key, features) in feature_groups {
+            for feature in features {
+                // Check if the feature's category is disabled
+                if feature.properties.get("building").is_some() && disabled_setting.contains(&"building".to_string()) {
+                    continue;
+                }
 
-                commands.spawn((
-                    ShapeBundle {
-                        path: GeometryBuilder::build_as(&shape),
-                        transform: Transform::from_xyz(0.0, 0.0, 5.0),
-                        ..default()
-                    },
-                    Stroke::new(Srgba { red: 0.400, green: 0.400, blue: 0.400, alpha: 1.0 }, 2.5),
-                    MapFeature {
-                        id: feature.id.clone(),
-                        properties: feature.properties.clone(),
-                        geometry: feature.geometry.clone(),
-                        road: feature.road.clone(),
-                    }
-                )).with_children(|parent| {
-                    parent.spawn((
+                for line in &feature.road {
+                    let points: Vec<_> = line
+                        .iter()
+                        .map(|point| {
+                            let projected = map_bundle.lat_lon_to_mercator(point.y, point.x);
+                            Vec2::new(projected.x, projected.y)
+                        })
+                        .collect();
+
+                    let shape = shapes::Polygon {
+                        points: points.clone(),
+                        closed: false,
+                    };
+
+                    commands.spawn((
                         ShapeBundle {
                             path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(2.5, -2.5, 1.0),
+                            transform: Transform::from_xyz(0.0, 0.0, 5.0),
                             ..default()
                         },
-                        Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 2.5), // Shadow stroke alpha set to 1.0
-                    ));
-                });
-            }
-            for polygon in &feature.geometry {
-                let points: Vec<_> = polygon
-                    .iter()
-                    .map(|point| {
-                        let projected = map_bundle.lat_lon_to_mercator(point.y, point.x);
-                        Vec2::new(projected.x, projected.y)
-                    })
-                    .collect();
+                        Stroke::new(Srgba { red: 0.400, green: 0.400, blue: 0.400, alpha: 1.0 }, 2.5),
+                        MapFeature {
+                            id: feature.id.clone(),
+                            properties: feature.properties.clone(),
+                            geometry: feature.geometry.clone(),
+                            road: feature.road.clone(),
+                        }
+                    )).with_children(|parent| {
+                        parent.spawn((
+                            ShapeBundle {
+                                path: GeometryBuilder::build_as(&shape),
+                                transform: Transform::from_xyz(2.5, -2.5, 1.0),
+                                ..default()
+                            },
+                            Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 2.5),
+                        ));
+                    });
+                }
 
-                let shape = shapes::Polygon {
-                    points: points.clone(),
-                    closed: true,
-                };
-                
-                if feature.properties.get("landuse").is_some() {
+                for polygon in &feature.geometry {
+                    let points: Vec<_> = polygon
+                        .iter()
+                        .map(|point| {
+                            let projected = map_bundle.lat_lon_to_mercator(point.y, point.x);
+                            Vec2::new(projected.x, projected.y)
+                        })
+                        .collect();
+
+                    let shape = shapes::Polygon {
+                        points: points.clone(),
+                        closed: true,
+                    };
+
+                    let fill_color = if key.contains("Building") {
+                        Srgba { red: 0.341, green: 0.341, blue: 0.341, alpha: 1.0 }
+                    } else {
+                        continue;
+                    };
+
                     commands.spawn((
                         ShapeBundle {
                             path: GeometryBuilder::build_as(&shape),
                             transform: Transform::from_xyz(0.0, 0.0, 0.0),
                             ..default()
                         },
-                        Fill::color(Srgba { red: 0.341, green: 0., blue: 0.341, alpha: 1.0 }),
-                        Stroke::new(Srgba { red: 0.400, green: 0., blue: 0.400, alpha: 1.0 }, 1.0),
-                        MapFeature {
-                            id: feature.id.clone(),
-                            properties: feature.properties.clone(),
-                            geometry: feature.geometry.clone(),
-                            road: feature.road.clone(),
-                        }
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            ShapeBundle {
-                                path: GeometryBuilder::build_as(&shape),
-                                transform: Transform::from_xyz(2.5, -2.5, 1.0),
-                                ..default()
-                            },
-                            Fill::color(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }), // Shadow alpha set to 1.0
-                            Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 1.0), // Shadow stroke alpha set to 1.0
-                        ));
-                        
-                    });
-                } else if feature.properties.get("sport").is_some() {
-                    commands.spawn((
-                        ShapeBundle {
-                            path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, 1.750),
-                            ..default()
-                        },
-                        Fill::color(Srgba { red: 0., green: 0.341, blue: 0., alpha: 1.0 }),
-                        Stroke::new(Srgba { red: 0., green: 0.400, blue: 0.400, alpha: 1.0 }, 1.0),
-                        MapFeature {
-                            id: feature.id.clone(),
-                            properties: feature.properties.clone(),
-                            geometry: feature.geometry.clone(),
-                            road: feature.road.clone(),
-                        }
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            ShapeBundle {
-                                path: GeometryBuilder::build_as(&shape),
-                                transform: Transform::from_xyz(2.5, -2.5, 1.0),
-                                ..default()
-                            },
-                            Fill::color(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }), // Shadow alpha set to 1.0
-                            Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 1.0), // Shadow stroke alpha set to 1.0
-                        ));
-                    });
-                } else if feature.properties.get("leisure").is_some() {
-                    commands.spawn((
-                        ShapeBundle {
-                            path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, 1.50),
-                            ..default()
-                        },
-                        Fill::color(Srgba { red: 0., green: 0.341, blue: 0., alpha: 1.0 }),
-                        Stroke::new(Srgba { red: 0., green: 0.400, blue: 0.400, alpha: 1.0 }, 1.0),
-                        MapFeature {
-                            id: feature.id.clone(),
-                            properties: feature.properties.clone(),
-                            geometry: feature.geometry.clone(),
-                            road: feature.road.clone(),
-                        }
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            ShapeBundle {
-                                path: GeometryBuilder::build_as(&shape),
-                                transform: Transform::from_xyz(2.5, -2.5, 1.0),
-                                ..default()
-                            },
-                            Fill::color(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }), // Shadow alpha set to 1.0
-                            Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 1.0), // Shadow stroke alpha set to 1.0
-                        ));
-                    });
-                    //
-                } else if feature.properties.get("amenity").is_some() {
-                    commands.spawn((
-                        ShapeBundle {
-                            path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, 10.0),
-                            ..default()
-                        },
-                        Fill::color(Srgba { red: 0., green: 0.341, blue: 0.341, alpha: 1.0 }),
-                        Stroke::new(Srgba { red: 0., green: 0.400, blue: 0.400, alpha: 1.0 }, 1.0),
-                                                MapFeature {
-                            id: feature.id.clone(),
-                            properties: feature.properties.clone(),
-                            geometry: feature.geometry.clone(),
-                            road: feature.road.clone(),
-                        }
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            ShapeBundle {
-                                path: GeometryBuilder::build_as(&shape),
-                                transform: Transform::from_xyz(2.5, -2.5, 1.0),
-                                ..default()
-                            },
-                            Fill::color(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }), // Shadow alpha set to 1.0
-                            Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 1.0), // Shadow stroke alpha set to 1.0
-                        ));
-                    });
-                } else if feature.properties.get("building").is_some() {
-                    commands.spawn((
-                        ShapeBundle {
-                            path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, 20.0),
-                            ..default()
-                        },
-                        Fill::color(Srgba { red: 0.341, green: 0.341, blue: 0.341, alpha: 1.0 }),
+                        Fill::color(fill_color),
                         Stroke::new(Srgba { red: 0.400, green: 0.400, blue: 0.400, alpha: 1.0 }, 1.0),
                         MapFeature {
                             id: feature.id.clone(),
@@ -197,8 +124,8 @@ pub fn respawn_map(mut commands: Commands, shapes_query: Query<(Entity, &Path, &
                                 transform: Transform::from_xyz(2.5, -2.5, 1.0),
                                 ..default()
                             },
-                            Fill::color(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }), // Shadow alpha set to 1.0
-                            Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 1.0), // Shadow stroke alpha set to 1.0
+                            Fill::color(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }),
+                            Stroke::new(Srgba { red: 0., green: 0., blue: 0., alpha: 0.5 }, 1.0),
                         ));
                     });
                 }

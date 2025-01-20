@@ -1,9 +1,10 @@
 use bevy::{core_pipeline::bloom::Bloom, prelude::*, window::PrimaryWindow};
 use bevy_pancam::{DirectionKeys, PanCam};
+use bevy_prototype_lyon::entity::Path;
 
-use crate::map::WorldSpaceRect;
+use crate::map::{MapBundle, MapFeature, WorldSpaceRect};
 
-use super::{orientation::CameraRotation, SettingsOverlay};
+use super::{orientation::CameraRotation, respawn_map, SettingsOverlay};
 
 
 
@@ -46,6 +47,8 @@ pub fn camera_change(
     mut camera_settings: ResMut<CameraSettings>,
     mut query: Query<&mut OrthographicProjection, With<Camera>>,
     mut overpass_settings: ResMut<SettingsOverlay>,
+    commands: Commands, mut map_bundle: Query<&mut MapBundle>,
+    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
 ) {
     let projection = query.single_mut();
     if projection.is_changed() {
@@ -53,11 +56,13 @@ pub fn camera_change(
         if camera_settings.scale > 3.5 {
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
                 category.disabled = true;
+                respawn_map(commands, shapes_query, map_bundle, overpass_settings);                
             }
         } else {
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
                 if category.disabled {
                     category.disabled = false;
+                    respawn_map(commands, shapes_query, map_bundle, overpass_settings);                
                 } 
             }
         }
