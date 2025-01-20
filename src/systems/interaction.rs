@@ -94,9 +94,6 @@ pub fn check_map_info(
                     };
                 }
                 if is_point_in_polygon(&world_position, vertices) {
-                    egui::Window::new(feat.id.to_string()).show(contexts.ctx_mut(), |ui| {
-                        ui.label(feat.properties.to_string());
-                    });
                     persistent_info_windows.windows.insert(
                         feat.id.to_string(),
                         feat.properties.to_string(),

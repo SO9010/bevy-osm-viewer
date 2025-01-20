@@ -8,11 +8,21 @@ pub struct SettingsOverlay {
     pub categories: BTreeMap<String, Category>,
 }
 
+/// Holds the categories and sub-categories which are the basis of making an osm request.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Category {
-    pub all: bool,
-    pub disabled: bool, // Get this to auto disable when zoomed out too far!
-    pub items: BTreeMap<String, bool>, // Maps sub-category names to their state
+    pub all: bool,                      // Toggle all to be on
+    pub none: bool,                     // Toggle all to be off
+    pub disabled: bool,                 // Make it so they are all disabled
+    pub items: BTreeMap<String, bool>,  // Maps sub-category names to their state
+}
+
+impl Category {
+    pub fn set_children(&mut self, on_or_off: bool) {
+        for (_, toggle) in self.items.iter_mut() {
+            *toggle = on_or_off;
+        } 
+    }
 }
 
 impl SettingsOverlay {
@@ -855,10 +865,11 @@ impl SettingsOverlay {
     pub fn get_true_keys_with_category(&self) -> Vec<(String, String)> {
         self.categories.iter()
             .flat_map(|(category_name, category)| {
-                if category.all {
+                if category.disabled {
+                    return vec![];
+                }
+                else if category.all {
                     vec![(category_name.clone(), "*".to_string())]
-                } else if category.disabled {
-                    return vec![(category_name.clone(), "n/a".to_string())];
                 } else {
                     category.items.iter()
                     .filter_map(move |(item_name, &value)| {

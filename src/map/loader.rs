@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use super::MapFeature;
 
-// TODO: MAKE THIS BETTER NEXT, have it so users can define their own colours
 /// Parses OSM data from a string and returns a vector of map features.
 pub fn get_data_from_string_osm(data: &str) -> Result<Vec<MapFeature>, Box<dyn std::error::Error>> {
     let response: OverpassResponse = serde_json::from_str(data)?;

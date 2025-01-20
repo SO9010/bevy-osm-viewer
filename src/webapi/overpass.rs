@@ -8,31 +8,37 @@ use crate::{map::{get_data_from_string_osm, MapBundle, MapFeature, WorldSpaceRec
 
 pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: ResMut<SettingsOverlay>) -> String {
     let mut query = String::default();
-    // Opening
-    if let categories = overpass_settings.get_true_keys_with_category() {
-        if !categories.is_empty() {
-            query.push_str("[out:json];(");
-            for bound in bounds {
-                for (category, key) in overpass_settings.get_true_keys_with_category() {
-                    if key == "*" {
-                        query.push_str(&format!(r#"
-                        (
-                        way["{}"]({},{},{},{}); 
-                        );
-                        "#, category.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
-                    } else if key == "n/a" {
-                    } else {
-                        query.push_str(&format!(r#"
-                        (
-                        way["{}"="{}"]({},{},{},{}); 
-                        );
-                        "#, category.to_lowercase(), key.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
-                    }
+    let opening = "[out:json];(";
+    let closing = ");(._;>;);\nout body geom;";
+
+    for bound in bounds {
+        let mut category_disabled = false;
+        for (category, key) in overpass_settings.get_true_keys_with_category() {
+            if !category_disabled {
+                if key == "n/a" {
+                    category_disabled = true;
+                } else if key == "*" {
+                    query.push_str(&format!(r#"
+                    (
+                    way["{}"]({},{},{},{}); 
+                    );
+                    "#, category.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
+                } else {
+                    query.push_str(&format!(r#"
+                    (
+                    way["{}"="{}"]({},{},{},{}); 
+                    );
+                    "#, category.to_lowercase(), key.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
                 }
             }
-            // Close
-            query.push_str(");(._;>;);\nout body geom;");
         }
+    }
+
+    if !query.is_empty() {
+        query.insert_str(0, opening);
+        query.push_str(closing);
+    } else {
+        return "ERR".to_string();
     }
     query
 }
@@ -44,7 +50,10 @@ pub fn get_overpass_data(bounds: Vec<WorldSpaceRect>, commands: Commands, map_bu
     if bounds.is_empty() {
         return;
     }
-    send_overpass_query(build_overpass_query(bounds, overpass_settings), commands, map_bundle, shapes_query);
+    let query = build_overpass_query(bounds, overpass_settings);
+    if query != "ERR" {
+        send_overpass_query(query, commands, map_bundle, shapes_query);
+    }
 }
 
 // TODO: PLEASE OH PLEASE MAKE THIS MULTITHREADED WITH ASYNC!

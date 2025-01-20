@@ -21,6 +21,12 @@ pub fn debug_draw_fps(mut commands: Commands, asset_server: Res<AssetServer>) {
             font_size: 21.0,
             ..default()
         },
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            right: Val::Px(5.0),
+            ..default()
+        },
     ))
     .with_child((
         TextSpan::default(),

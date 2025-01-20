@@ -50,19 +50,23 @@ pub fn camera_change(
     let projection = query.single_mut();
     if projection.is_changed() {
         camera_settings.scale = projection.scale;
-        // TODO: Not very conviced by this, find a wayy better way of doing it!
         if camera_settings.scale > 3.5 {
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
-                category.all = false;
+                category.disabled = true;
             }
-        } else if let Some(category) = overpass_settings.categories.get_mut("Building") {
-            if !category.all {
-                category.all = true;
+        } else {
+            if let Some(category) = overpass_settings.categories.get_mut("Building") {
+                if category.disabled {
+                    category.disabled = false;
+                } 
             }
         }
+
+        /*
+        
         if camera_settings.scale > 10.0 {
             if let Some(category) = overpass_settings.categories.get_mut("Highway") {
-                category.all = false;
+                category.disabled = false;
                 if let Some(item) = category.items.get_mut("motorway") {
                     *item = false;
                 }
@@ -77,6 +81,8 @@ pub fn camera_change(
                 }
             }
         } 
+        
+        */
     }
 }
 
