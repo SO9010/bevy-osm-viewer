@@ -50,13 +50,16 @@ pub fn camera_change(
     commands: Commands, mut map_bundle: Query<&mut MapBundle>,
     shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
 ) {
+    // TODO: Need to work on zoning what to spawn in and not to based of camera view.
     let projection = query.single_mut();
     if projection.is_changed() {
         camera_settings.scale = projection.scale;
         if camera_settings.scale > 3.5 {
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
-                category.disabled = true;
-                respawn_map(commands, shapes_query, map_bundle, overpass_settings);                
+                if !category.disabled {
+                    category.disabled = true;
+                    respawn_map(commands, shapes_query, map_bundle, overpass_settings);                
+                }
             }
         } else {
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
