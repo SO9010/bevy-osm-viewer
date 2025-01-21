@@ -56,7 +56,7 @@ pub fn respawn_map(
                         let color = overpass_settings.categories.get(cat).unwrap().items.get(key).unwrap().1;
                         fill_color = Some(Srgba { red: (color.r() as f32) / 255., green: (color.g() as f32) / 255., blue: (color.b() as f32) / 255., alpha: 1.0 });
                         stroke_color = Srgba { red: (color.r() as f32) / 255., green: (color.g() as f32) / 255., blue: (color.b() as f32) / 255., alpha: 1.0 };
-                        if cat == "Highway" {
+                        if cat == "Highway" || cat == "Railway" {
                             fill_color = None;
                             line_width = 2.5;
                         }
@@ -64,7 +64,7 @@ pub fn respawn_map(
                     }
                 } else {
                     if feature.properties.get(cat.to_lowercase()).is_some() {
-                        if cat == "Highway" {
+                        if cat == "Highway" || cat == "Railway" {
                             fill_color = None;
                             line_width = 2.5;
                         }
