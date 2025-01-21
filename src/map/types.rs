@@ -9,9 +9,33 @@ pub const SCALE: f32 = 10000000.0;
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct MapFeature {
     pub id: String,
-    pub properties: serde_json::Value, // Use serde_json for flexible properties such as buidling type
-    pub geometry: Vec<Vec<Vec2>>,      // Nested Vec2 to represent Polygon coordinates
-    pub road: Vec<Vec<Vec2>>,       // Roads are a special case of polygons, they are not closed
+    pub properties: serde_json::Value,  // Use serde_json for flexible properties such as buidling type
+    pub geometry: Vec<Vec<Vec2>>,       // Nested Vec2 to represent Polygon coordinates
+}
+
+impl MapFeature {
+    pub fn is_similar(&self, other: MapFeature) -> bool {
+        if self.properties.get("highway").is_some() || other.properties.get("highway").is_some() {
+            return false;
+        }
+        for geom in &self.geometry {
+            for other_geom in &other.geometry {
+                if polygon_area(geom) == polygon_area(other_geom) {
+                }
+            }
+        }
+        false 
+    }
+}
+
+fn polygon_area(geometry: &Vec<Vec2>) -> f32 {
+    let mut area: f32 = 0.0;
+    let j = geometry.len() - 1;
+    for i in 0..geometry.len() {
+        area += (geometry[j].x + geometry[i].x) * (geometry[j].y - geometry[i].y);
+    }
+
+    area
 }
 
 #[derive(Component, Clone, Debug)]
@@ -172,7 +196,7 @@ pub struct MapPoints {
 /// Represents a bundle of components related to a map. The justification for not making a reasorce is as in the future I may want to have multiple maps in a split screen
 #[derive(Component, Clone, Debug)]
 pub struct MapBundle {
-    /// A collection of map features.
+    /// A collection of map features, please put this in a spatial hashmap
     pub features: Vec<MapFeature>,
 
     /// Map points of the map, this is used to calculate the scale and offset

@@ -28,8 +28,7 @@ pub fn get_data_from_string_osm(data: &str) -> Result<Vec<MapFeature>, Box<dyn s
             features.push(MapFeature {
                 id: way.id.to_string(),
                 properties: way.tags.unwrap_or_default(),
-                geometry: if is_road { vec![Vec::new()] } else { vec![points.clone()] },
-                road: if is_road { vec![points] } else { Vec::new() },
+                geometry: vec![points.clone()],
             });
         }
     }

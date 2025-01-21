@@ -91,7 +91,7 @@ fn ui_example_system(
                 }
                 if ui.button("Clear Map").on_hover_text("Despawns the data which makes up this map").clicked() {
                     for (entity, _, _, _) in shapes_query.iter() {
-                        commands.entity(entity).despawn_recursive(); // Use despawn_recursive instead of despawn
+                        commands.entity(entity).despawn_recursive();
                     } 
                 }
             });

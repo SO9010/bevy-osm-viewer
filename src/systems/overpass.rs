@@ -18,9 +18,11 @@ pub fn spawn_starting_point(commands: Commands,
 {
     if let Some(category) = overpass_settings.categories.get_mut("Highway") {
         category.all = true;
+        category.set_children(true);
     }
     if let Some(category) = overpass_settings.categories.get_mut("Building") {
         category.all = true;
+        category.set_children(true);
     }
     bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query, overpass_settings);
 }
