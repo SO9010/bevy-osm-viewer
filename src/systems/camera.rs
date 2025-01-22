@@ -1,10 +1,9 @@
 use bevy::{core_pipeline::bloom::Bloom, prelude::*, window::PrimaryWindow};
 use bevy_pancam::{DirectionKeys, PanCam};
-use bevy_prototype_lyon::entity::Path;
 
-use crate::map::{MapBundle, MapFeature, WorldSpaceRect};
+use crate::map::{MapBundle, WorldSpaceRect};
 
-use super::{orientation::CameraRotation, respawn_map, SettingsOverlay};
+use super::{orientation::CameraRotation, SettingsOverlay};
 
 
 
@@ -47,8 +46,7 @@ pub fn camera_change(
     mut camera_settings: ResMut<CameraSettings>,
     mut query: Query<&mut OrthographicProjection, With<Camera>>,
     mut overpass_settings: ResMut<SettingsOverlay>,
-    commands: Commands, mut map_bundle: Query<&mut MapBundle>,
-    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    mut map_bundle: ResMut<MapBundle>,
 ) {
     // TODO: Need to work on zoning what to spawn in and not to based of camera view.
     let projection = query.single_mut();
@@ -58,14 +56,14 @@ pub fn camera_change(
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
                 if !category.disabled {
                     category.disabled = true;
-                    respawn_map(commands, shapes_query, map_bundle, overpass_settings);                
+                    map_bundle.get_more_data = true;
                 }
             }
         } else {
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
                 if category.disabled {
                     category.disabled = false;
-                    respawn_map(commands, shapes_query, map_bundle, overpass_settings);                
+                    map_bundle.get_more_data = true;
                 } 
             }
         }
@@ -95,8 +93,8 @@ pub fn camera_change(
 }
 
 pub fn camera_space_to_world_space(
-    camera_query: &Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    primary_window_query: &Query<&Window, With<PrimaryWindow>>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    primary_window_query: Query<&Window, With<PrimaryWindow>>,
     mut query: Query<&mut OrthographicProjection, With<Camera>>,
 ) -> Option<WorldSpaceRect> {
     if let Ok((_, transform)) = camera_query.get_single() {

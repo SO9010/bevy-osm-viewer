@@ -5,41 +5,30 @@ use bevy_prototype_lyon::prelude::*;
 
 use crate::map::{MapBundle, MapFeature};
 
-use super::{bbox_system, OccupiedScreenSpace, SettingsOverlay};
+use super::{OccupiedScreenSpace, SettingsOverlay};
 
+/// Handles keyboard input and updates map features accordingly.
 pub fn handle_keyboard(
     keys: Res<ButtonInput<KeyCode>>,
-    commands: Commands,
-    map_bundle: Query<&mut MapBundle>,
-    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
-    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    primary_window_query: Query<&Window, With<PrimaryWindow>>,
-    query: Query<&mut OrthographicProjection, With<Camera>>,
-    overpass_settings: ResMut<SettingsOverlay>,
+    mut map_bundle: ResMut<MapBundle>,
 ) {
     if keys.pressed(KeyCode::KeyU) {
         // U is being held down
-        bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query, overpass_settings);
+        map_bundle.get_more_data = true;
     }
 }
 
 /// Handles mouse input and updates camera and map features accordingly.
 pub fn handle_mouse(
-    commands: Commands,
-    map_bundle: Query<&mut MapBundle>,
-    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
-    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    primary_window_query: Query<&Window, With<PrimaryWindow>>,
-    query: Query<&mut OrthographicProjection, With<Camera>>,
+    mut map_bundle: ResMut<MapBundle>,
     buttons: Res<ButtonInput<MouseButton>>,
-    overpass_settings: ResMut<SettingsOverlay>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
     occupied_screen_space: Res<OccupiedScreenSpace>,
     mut q_pancam: Query<&mut PanCam>,
 ) {
     if buttons.just_pressed(MouseButton::Middle) {
     } else if buttons.just_released(MouseButton::Middle) {
-        bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query, overpass_settings);
+        map_bundle.get_more_data = true;
     }
     if let Some(position) = q_windows.single().cursor_position() {
         if position.x <= (occupied_screen_space.left + 15.) {

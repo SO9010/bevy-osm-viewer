@@ -13,6 +13,8 @@ pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &Res
 
     for bound in bounds {
         for (category, key) in overpass_settings.get_true_keys_with_category() {
+        /*
+        If you only want the program to fetch the specific data you want, you can use this code instead of the one below.
             if key == "n/a" {
                 continue;
             } else if key == "*" {
@@ -28,6 +30,12 @@ pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &Res
                 );
                 "#, category.to_lowercase(), key.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
             }
+        */
+            query.push_str(&format!(r#"
+            (
+            way["{}"]({},{},{},{}); 
+            );
+            "#, category.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
         }
     }
 
@@ -40,8 +48,7 @@ pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &Res
     query
 }
 
-pub fn get_overpass_data(bounds: Vec<WorldSpaceRect>, commands: Commands, map_bundle: Query<&mut MapBundle>,
-    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>, overpass_settings: ResMut<SettingsOverlay>,
+pub fn get_overpass_data(bounds: Vec<WorldSpaceRect>, map_bundle: ResMut<MapBundle>, overpass_settings: &ResMut<SettingsOverlay>,
 ) {
     info!("Querying Overpass API...");
     if bounds.is_empty() {
@@ -49,14 +56,12 @@ pub fn get_overpass_data(bounds: Vec<WorldSpaceRect>, commands: Commands, map_bu
     }
     let query = build_overpass_query(bounds, &overpass_settings);
     if query != "ERR" {
-        send_overpass_query(query, commands, map_bundle, shapes_query, overpass_settings);
+        send_overpass_query(query, map_bundle);
     }
 }
 
 // TODO: PLEASE OH PLEASE MAKE THIS MULTITHREADED WITH ASYNC!
-pub fn send_overpass_query(query: String, commands: Commands, mut map_bundle: Query<&mut MapBundle>,
-    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
-    overpass_settings: ResMut<SettingsOverlay>,
+pub fn send_overpass_query(query: String, mut map_bundle: ResMut<MapBundle>,
 ) {
     if query.is_empty() {
         return;
@@ -92,13 +97,8 @@ pub fn send_overpass_query(query: String, commands: Commands, mut map_bundle: Qu
         // Deserialize the accumulated string
         let (tx, rx) = bounded::<Vec<MapFeature>>(1);
         let rpsn = response_body.clone();
-
-        let map_features = if let Ok(map_bundle) = map_bundle.get_single() {
-            map_bundle.features.clone()
-        } else {
-            Vec::new()
-        };
-
+        
+        let map_features = map_bundle.features.clone();
         thread::spawn(move || {
             let features = get_data_from_string_osm(&rpsn);
             if features.is_ok() {
@@ -115,12 +115,11 @@ pub fn send_overpass_query(query: String, commands: Commands, mut map_bundle: Qu
         });
 
         if let Ok(features) = rx.recv() {
-            if let Ok(mut map_bundle) = map_bundle.get_single_mut() {
-                map_bundle.features.extend(features);
-            }
+            info!("Features: {:?}", features.len());
+            map_bundle.features.extend(features);
         }
 
-        respawn_map(commands, shapes_query, map_bundle, overpass_settings);
+        map_bundle.respawn = true;
     }
 }
 

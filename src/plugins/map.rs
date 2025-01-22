@@ -2,15 +2,20 @@ use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
     prelude::*,
 };
-use crate::systems::*;
+use crate::{map::{MapBundle, SCALE, STARTING_LONG_LAT}, systems::*};
 
 pub struct MapPlugin;
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_map, spawn_starting_point).chain())
-            .add_systems(Update, (check_map_info, handle_mouse, handle_keyboard, camera_change).chain())
+        app.insert_resource(MapBundle::new(STARTING_LONG_LAT.x, STARTING_LONG_LAT.y, SCALE))
+            .add_systems(Startup, spawn_starting_point)
+            .add_systems(Update, check_map_info)
+            .add_systems(Update, (handle_mouse, handle_keyboard))
+            .add_systems(Update, camera_change)
+            .add_systems(Update, (bbox_system, respawn_map))
             .insert_resource(PersistentInfoWindows::default())
+            .insert_resource(MapBundle::new(STARTING_LONG_LAT.x, STARTING_LONG_LAT.y, SCALE))
             .add_plugins(SettingsPlugin);
         if cfg!(debug_assertions) {
             app.add_plugins(FrameTimeDiagnosticsPlugin)

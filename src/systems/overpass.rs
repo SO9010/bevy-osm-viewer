@@ -5,14 +5,10 @@ use bevy_prototype_lyon::entity::Path;
 
 use crate::map::{MapBundle, MapFeature};
 
-use super::{bbox_system, SettingsOverlay};
+use super::{SettingsOverlay};
 
-pub fn spawn_starting_point(commands: Commands,
-    map_bundle: Query<&mut MapBundle>,
-    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
-    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    primary_window_query: Query<&Window, With<PrimaryWindow>>,
-    query: Query<&mut OrthographicProjection, With<Camera>>,
+pub fn spawn_starting_point(
+    mut map_bundle: ResMut<MapBundle>,
     mut overpass_settings: ResMut<SettingsOverlay>,
 ) 
 {
@@ -24,5 +20,5 @@ pub fn spawn_starting_point(commands: Commands,
         category.all = true;
         category.set_children(true);
     }
-    bbox_system(commands, map_bundle, &camera_query, &primary_window_query, query, shapes_query, overpass_settings);
+    map_bundle.get_more_data = true;
 }

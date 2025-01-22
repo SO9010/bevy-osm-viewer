@@ -18,13 +18,6 @@ pub fn get_data_from_string_osm(data: &str) -> Result<Vec<MapFeature>, Box<dyn s
                 .map(|coords| Vec2::new(coords.lon as f32, coords.lat as f32))
                 .collect();
 
-            // Check if this is a road
-            let is_road = way
-                .tags
-                .as_ref()
-                .and_then(|tags| tags.get("highway"))
-                .is_some();
-
             features.push(MapFeature {
                 id: way.id.to_string(),
                 properties: way.tags.unwrap_or_default(),

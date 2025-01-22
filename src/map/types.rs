@@ -193,8 +193,7 @@ pub struct MapPoints {
 }
 
 
-/// Represents a bundle of components related to a map. The justification for not making a reasorce is as in the future I may want to have multiple maps in a split screen
-#[derive(Component, Clone, Debug)]
+#[derive(Resource, Clone, Debug)]
 pub struct MapBundle {
     /// A collection of map features, please put this in a spatial hashmap
     pub features: Vec<MapFeature>,
@@ -204,6 +203,9 @@ pub struct MapBundle {
 
     /// Global scale for rendering (used for Mercator projection)
     pub scale: f32,
+
+    pub respawn: bool,
+    pub get_more_data: bool,
 }
 
 
@@ -216,6 +218,8 @@ impl MapBundle {
                 spatial_index: SpatialIndex::new(),
             },
             scale,
+            respawn: false,
+            get_more_data: false,
         }
     }
 
