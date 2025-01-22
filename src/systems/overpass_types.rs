@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use bevy_egui::egui::{self, Color32};
 
-
 #[derive(Resource, Clone)]
 pub struct SettingsOverlay {
     pub categories: BTreeMap<String, Category>,

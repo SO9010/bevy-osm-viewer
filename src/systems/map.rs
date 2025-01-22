@@ -1,7 +1,5 @@
-use std::collections::HashSet;
 
 use bevy::{prelude::*, text::cosmic_text::ttf_parser::feat, utils::HashMap, window::PrimaryWindow};
-use bevy_egui::egui::Color32;
 use bevy_prototype_lyon::prelude::*;
 
 use crate::{map::{world_space_rect_to_lat_long, MapBundle, MapFeature, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
@@ -50,6 +48,8 @@ pub fn respawn_map(
             let mut fill_color= Some(Srgba { red: 0.4, green: 0.400, blue: 0.400, alpha: 1.0 });
             let mut stroke_color = Srgba { red: 0.400, green: 0.400, blue: 0.400, alpha: 1.0 };
             let mut line_width = 1.0;
+            let width_multiplier = 3.5;
+            let mut elevation = 1.0;
             for ((cat, key), _) in &feature_groups {
                 if key != "*" {
                     if feature.properties.get(cat.to_lowercase()).map_or(false, |v| *v == *key.to_lowercase()) {
@@ -59,6 +59,17 @@ pub fn respawn_map(
                         if cat == "Highway" || cat == "Railway" {
                             fill_color = None;
                             line_width = 2.5;
+                            elevation = 0.;
+
+                            // When zoomed out we should make the primary roads bigger, and the motorways even bigger.
+                            if feature.properties.get("highway").map_or(false, |v| v == "residential" || v == "primary" || v == "secondary" || v == "tertiary") {
+                                line_width = 5.5;
+                            }
+                           
+
+                            let _ = feature.properties.get("est_width").map_or((), |v| {
+                               // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
+                            });
                         }
                         skip_poly = false;
                     }
@@ -67,6 +78,17 @@ pub fn respawn_map(
                         if cat == "Highway" || cat == "Railway" {
                             fill_color = None;
                             line_width = 2.5;
+                            elevation = 0.;
+
+                            if feature.properties.get("highway").map_or(false, |v| v == "residential" || v == "primary" || v == "secondary" || v == "tertiary") {
+                                line_width = 5.5;
+                            }
+                           
+
+                            let _ = feature.properties.get("est_width").map_or((), |v| {
+                                // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
+                            });
+
                         }
                         skip_poly = false;
                     }
@@ -93,21 +115,21 @@ pub fn respawn_map(
                     batch_commands_closed.push((
                         ShapeBundle {
                             path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, 0.0),
+                            transform: Transform::from_xyz(0.0, 0.0, elevation),
                             ..default()
                         },
                         Fill::color(fill),
-                        Stroke::new(stroke_color, line_width),
+                        Stroke::new(stroke_color, line_width as f32),
                         feature.clone(),
                     ));
                 } else {
                     batch_commands_open.push((
                         ShapeBundle {
                             path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, 0.0),
+                            transform: Transform::from_xyz(0.0, 0.0, elevation),
                             ..default()
                         },
-                        Stroke::new(stroke_color, line_width),
+                        Stroke::new(stroke_color, line_width as f32),
                         feature.clone(),
                     ));
                 }

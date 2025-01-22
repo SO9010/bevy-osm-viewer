@@ -32,7 +32,7 @@ pub fn setup_camera(mut commands: Commands) {
             enabled: true, // when false, controls are disabled. See toggle example.
             zoom_to_cursor: true, // whether to zoom towards the mouse or the center of the screen
             min_scale: 0.25, // prevent the camera from zooming too far in
-            max_scale: 40., // prevent the camera from zooming too far out
+            max_scale: f32::INFINITY, // prevent the camera from zooming too far out
             min_x: f32::NEG_INFINITY, // minimum x position of the camera window
             max_x: f32::INFINITY, // maximum x position of the camera window
             min_y: f32::NEG_INFINITY, // minimum y position of the camera window
