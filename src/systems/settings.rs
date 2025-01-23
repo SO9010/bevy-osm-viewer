@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_egui::{egui::{self, color_picker::{color_edit_button_rgb, color_edit_button_rgba, color_edit_button_srgba, color_picker_color32}, Checkbox, Color32, RichText}, EguiContexts};
 use bevy_prototype_lyon::entity::Path;
-use crate::systems::settings::egui::color_picker::Alpha::Opaque;
+use crate::{map::MapBundle, systems::settings::egui::color_picker::Alpha::Opaque};
 
 use crate::map::MapFeature;
 
@@ -19,7 +19,6 @@ impl Plugin for SettingsPlugin {
     }
 }
 
-
 #[derive(Default, Resource)]
 pub struct OccupiedScreenSpace {
     pub left: f32,
@@ -33,6 +32,7 @@ fn ui_example_system(
     mut occupied_screen_space: ResMut<OccupiedScreenSpace>,
     mut overpass_settings: ResMut<SettingsOverlay>,
     shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    mut map_bundle: ResMut<MapBundle>,
     mut commands: Commands
 ) {
     let ctx = contexts.ctx_mut();
@@ -59,6 +59,7 @@ fn ui_example_system(
                                 } else {
                                     category.all = true;
                                     category.set_children(true);
+                                    map_bundle.get_more_data = true;
                                 }
                                 if category.none {
                                     category.none = false;
@@ -70,6 +71,7 @@ fn ui_example_system(
                                 } else {
                                     category.none = true;
                                     category.set_children(false);
+                                    map_bundle.get_more_data = true;
                                 }
                                 if category.all {
                                     category.all = false;
@@ -83,8 +85,13 @@ fn ui_example_system(
                                 if ui.checkbox(state , RichText::new(item_name).color(color)).clicked() {
                                     category.all = false;
                                     category.none = false;
+                                    map_bundle.respawn = true;
+                                    map_bundle.get_more_data = true;
                                 }
-                                color_edit_button_srgba(ui, clr, Opaque)
+                                if color_edit_button_srgba(ui, clr, Opaque).changed() {
+                                    // TODO: Find a way to not update as soon as it changes but only when the user is done.
+                                    map_bundle.respawn = true;
+                                }
                             });
                         }
                     });

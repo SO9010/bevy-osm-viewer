@@ -857,7 +857,7 @@ impl SettingsOverlay {
     pub fn add_category(&mut self, name: &str, items: Vec<&str>) {
         let mut category = Category::default();
         for item in items {
-            category.items.insert(item.to_string(), (false, Color32::from_rgb(211, 221, 221)));
+            category.items.insert(item.to_string(), (false, Color32::from_rgb(150, 150, 150)));
         }
         self.categories.insert(name.to_string(), category);
     }
@@ -871,6 +871,25 @@ impl SettingsOverlay {
                 else if category.all {
                     vec![(category_name.clone(), "*".to_string())]
                 } else {
+                    category.items.iter()
+                    .filter_map(move |(item_name, &value)| {
+                        if value.0 {
+                            Some((category_name.clone(), item_name.clone()))
+                        } else {
+                            None
+                        }
+                    }).collect::<Vec<_>>()
+                }
+            }).collect::<Vec<_>>()
+    }
+
+    pub fn get_true_keys_with_category_with_individual(&self) -> Vec<(String, String)> {
+        self.categories.iter()
+            .flat_map(|(category_name, category)| {
+                if category.disabled {
+                    return vec![];
+                }
+                else {
                     category.items.iter()
                     .filter_map(move |(item_name, &value)| {
                         if value.0 {

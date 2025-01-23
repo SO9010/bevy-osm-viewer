@@ -1,13 +1,10 @@
 
-use std::default;
-
-use bevy::{prelude::*, state::commands, text::cosmic_text::ttf_parser::feat, utils::HashMap, window::PrimaryWindow};
+use bevy::{prelude::*, utils::HashMap, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
 use crossbeam_channel::{bounded, Receiver};
 
-use crate::{map::{self, world_space_rect_to_lat_long, MapBundle, MapFeature, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
+use crate::{map::{world_space_rect_to_lat_long, MapBundle, MapFeature, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
 use super::{camera_space_to_world_space, SettingsOverlay};
-use bevy_tasks::{AsyncComputeTaskPool, TaskPool};
 
 pub fn respawn_map(
     mut commands: Commands,
@@ -16,7 +13,6 @@ pub fn respawn_map(
     mut map_bundle: ResMut<MapBundle>,
 ) {
     // We should spawn batch standard squares when zoomed out futher than a certain amount.
-    // We can make the road bigger based off how many lanes its reported to have.
     // We should only spawn the entities we want to see!
     if map_bundle.respawn {
         info!("Respawning map...");
@@ -29,7 +25,7 @@ pub fn respawn_map(
         }
     
         let disabled_setting = overpass_settings.get_disabled_categories();
-        let enabled_setting = overpass_settings.get_true_keys_with_category();
+        let enabled_setting = overpass_settings.get_true_keys_with_category_with_individual();
     
         // Group features by category and key, the string is thing to look for
         // (cat, key)
@@ -46,7 +42,7 @@ pub fn respawn_map(
         for feature in &map_bundle.features {
             let mut skip_poly = true;
             let mut fill_color= Some(Srgba { red: 0.4, green: 0.400, blue: 0.400, alpha: 1.0 });
-            let mut stroke_color = Srgba { red: 0.400, green: 0.400, blue: 0.400, alpha: 1.0 };
+            let mut stroke_color = Srgba { red: 0.50, green: 0.500, blue: 0.500, alpha: 1.0 };
             let mut line_width = 1.0;
             let width_multiplier = 3.5;
             let mut elevation = 1.0;
@@ -55,7 +51,7 @@ pub fn respawn_map(
                     if feature.properties.get(cat.to_lowercase()).map_or(false, |v| *v == *key.to_lowercase()) {
                         let color = overpass_settings.categories.get(cat).unwrap().items.get(key).unwrap().1;
                         fill_color = Some(Srgba { red: (color.r() as f32) / 255., green: (color.g() as f32) / 255., blue: (color.b() as f32) / 255., alpha: 1.0 });
-                        stroke_color = Srgba { red: (color.r() as f32) / 255., green: (color.g() as f32) / 255., blue: (color.b() as f32) / 255., alpha: 1.0 };
+                        stroke_color = Srgba { red: (color.r() as f32) / 210., green: (color.g() as f32) / 210., blue: (color.b() as f32) / 210., alpha: 1.0 };
                         if cat == "Highway" || cat == "Railway" {
                             fill_color = None;
                             line_width = 2.5;
@@ -70,25 +66,6 @@ pub fn respawn_map(
                             let _ = feature.properties.get("est_width").map_or((), |v| {
                                 // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
                             });
-                        }
-                        skip_poly = false;
-                    }
-                } else {
-                    if feature.properties.get(cat.to_lowercase()).is_some() {
-                        if cat == "Highway" || cat == "Railway" {
-                            fill_color = None;
-                            line_width = 2.5;
-                            elevation = 0.;
-    
-                            if feature.properties.get("highway").map_or(false, |v| v == "residential" || v == "primary" || v == "secondary" || v == "tertiary") {
-                                line_width = 5.5;
-                            }
-                            
-    
-                            let _ = feature.properties.get("est_width").map_or((), |v| {
-                                // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
-                            });
-    
                         }
                         skip_poly = false;
                     }

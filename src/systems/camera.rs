@@ -56,6 +56,7 @@ pub fn camera_change(
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
                 if !category.disabled {
                     category.disabled = true;
+                    map_bundle.respawn = true;
                     map_bundle.get_more_data = true;
                 }
             }
@@ -63,32 +64,33 @@ pub fn camera_change(
             if let Some(category) = overpass_settings.categories.get_mut("Building") {
                 if category.disabled {
                     category.disabled = false;
+                    map_bundle.respawn = true;
                     map_bundle.get_more_data = true;
                 } 
             }
         }
-
-        /*
         
+        /*
         if camera_settings.scale > 10.0 {
             if let Some(category) = overpass_settings.categories.get_mut("Highway") {
-                category.disabled = false;
-                if let Some(item) = category.items.get_mut("motorway") {
-                    *item = false;
+                category.set_children(false);
+                if let Some((item, _)) = category.items.get_mut("motorway") {
+                    *item = true;
                 }
-                if let Some(item) = category.items.get_mut("bus_guideway") {
-                    *item = false;
+                if let Some((item, _)) = category.items.get_mut("bus_guideway") {
+                    *item = true;
                 }
-                if let Some(item) = category.items.get_mut("primary") {
-                    *item = false;
+                if let Some((item, _)) = category.items.get_mut("primary") {
+                    *item = true;
                 }
-                if let Some(item) = category.items.get_mut("secondary") {
-                    *item = false;
+                if let Some((item, _)) = category.items.get_mut("secondary") {
+                    *item = true;
                 }
+                map_bundle.get_more_data = true;
             }
-        } 
-        
+        }
         */
+
     }
 }
 

@@ -1,11 +1,6 @@
-use bevy::{
-    prelude::*, window::PrimaryWindow,
-};
-use bevy_prototype_lyon::entity::Path;
-
-use crate::map::{MapBundle, MapFeature};
-
-use super::{SettingsOverlay};
+use bevy::prelude::*;
+use crate::map::MapBundle;
+use super::SettingsOverlay;
 
 pub fn spawn_starting_point(
     mut map_bundle: ResMut<MapBundle>,
