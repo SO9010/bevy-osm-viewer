@@ -1,12 +1,12 @@
-use std::{io::{BufRead, BufReader, Read}, thread};
+use std::{io::{BufRead, BufReader, Read}};
 
 use bevy::prelude::*;
-use bevy_prototype_lyon::entity::Path;
-use crossbeam_channel::bounded;
+use bevy_tasks::TaskPool;
+use bevy::tasks::AsyncComputeTaskPool;
 
-use crate::{map::{get_data_from_string_osm, MapBundle, MapFeature, WorldSpaceRect}, systems::{respawn_map, SettingsOverlay}};
+use crate::{map::{get_data_from_string_osm, MapBundle, MapFeature, WorldSpaceRect}, systems::SettingsOverlay};
 
-pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &ResMut<SettingsOverlay> ) -> String {
+pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &mut SettingsOverlay) -> String {
     let mut query = String::default();
     let opening = "[out:json];(";
     let closing = ");(._;>;);\nout body geom;";
@@ -48,59 +48,44 @@ pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &Res
     query
 }
 
-pub fn get_overpass_data(bounds: Vec<WorldSpaceRect>, map_bundle: ResMut<MapBundle>, overpass_settings: &ResMut<SettingsOverlay>,
-) {
+pub fn get_overpass_data<'a>(bounds: Vec<WorldSpaceRect>, map_bundle: &mut MapBundle, overpass_settings: &mut SettingsOverlay,
+) -> Vec<MapFeature>  {
     info!("Querying Overpass API...");
     if bounds.is_empty() {
-        return;
+        return vec![];
     }
-    let query = build_overpass_query(bounds, &overpass_settings);
+    let query = build_overpass_query(bounds, overpass_settings);
     if query != "ERR" {
-        send_overpass_query(query, map_bundle);
+        return send_overpass_query(query, map_bundle)
     }
+    vec![]
 }
 
-// TODO: PLEASE OH PLEASE MAKE THIS MULTITHREADED WITH ASYNC!
-pub fn send_overpass_query(query: String, mut map_bundle: ResMut<MapBundle>,
-) {
+pub fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
+) -> Vec<MapFeature> {
     if query.is_empty() {
-        return;
+        return vec![];
     }
     let url = "https://overpass-api.de/api/interpreter";
-    info!("query: {}", query);
-    let (tx, rx) = bounded::<BufReader<Box<dyn Read + Send + Sync>>>(1);
-
-    thread::spawn(move || {
-        if let Ok(response) = ureq::post(url).send_string(&query) {
-            if response.status() == 200 {
-                let reader: BufReader<Box<dyn Read + Send + Sync>> = BufReader::new(response.into_reader());
-                tx.send(reader).unwrap();
-            }
-        } else {
-            info!("Failed to send query to Overpass API");
-        }
-    });
-
-    if let Ok(reader) = rx.recv() {
-        let mut response_body = String::default();
-        // Accumulate chunks into a single string
-        for line in reader.lines() {
-            match line {
-                Ok(part) => response_body.push_str(part.as_str()),
-                Err(e) => {
-                    info!("Error reading response: {}", e);
-                    return;
+    
+    if let Ok(response) = ureq::post(url).send_string(&query) {
+        if response.status() == 200 {
+            let reader: BufReader<Box<dyn Read + Send + Sync>> = BufReader::new(response.into_reader());
+        
+            let mut response_body = String::default();
+            // Accumulate chunks into a single string
+            for line in reader.lines() {
+                match line {
+                    Ok(part) => response_body.push_str(part.as_str()),
+                    Err(e) => {
+                        info!("Error reading response: {}", e);
+                        return vec![];
+                    }
                 }
             }
-        }
 
-        // Deserialize the accumulated string
-        let (tx, rx) = bounded::<Vec<MapFeature>>(1);
-        let rpsn = response_body.clone();
-        
-        let map_features = map_bundle.features.clone();
-        thread::spawn(move || {
-            let features = get_data_from_string_osm(&rpsn);
+            let map_features = map_bundle.features.clone();
+            let features = get_data_from_string_osm(&response_body);
             if features.is_ok() {
                 let new_features: Vec<_> = features.unwrap()
                 .into_iter()
@@ -110,16 +95,13 @@ pub fn send_overpass_query(query: String, mut map_bundle: ResMut<MapBundle>,
                         .any(|existing| existing.id.contains(&feature.id))
                 })
                 .collect();
-                let _ = tx.send(new_features);
+                return new_features
             }
-        });
-
-        if let Ok(features) = rx.recv() {
-            info!("Features: {:?}", features.len());
-            map_bundle.features.extend(features);
+            return vec![]
         }
-
-        map_bundle.respawn = true;
+    } else {
+        info!("Failed to send query to Overpass API");
     }
+    vec![]
 }
 

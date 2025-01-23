@@ -14,6 +14,7 @@ impl Plugin for MapPlugin {
             .add_systems(Update, (handle_mouse, handle_keyboard))
             .add_systems(Update, camera_change)
             .add_systems(Update, (bbox_system, respawn_map))
+            .add_systems(FixedUpdate, read_map_receiver)
             .insert_resource(PersistentInfoWindows::default())
             .insert_resource(MapBundle::new(STARTING_LONG_LAT.x, STARTING_LONG_LAT.y, SCALE))
             .add_plugins(SettingsPlugin);

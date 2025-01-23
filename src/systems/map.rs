@@ -1,18 +1,18 @@
 
 use std::default;
 
-use bevy::{prelude::*, text::cosmic_text::ttf_parser::feat, utils::HashMap, window::PrimaryWindow};
+use bevy::{prelude::*, state::commands, text::cosmic_text::ttf_parser::feat, utils::HashMap, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
+use crossbeam_channel::{bounded, Receiver};
 
 use crate::{map::{self, world_space_rect_to_lat_long, MapBundle, MapFeature, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
-
 use super::{camera_space_to_world_space, SettingsOverlay};
-
+use bevy_tasks::{AsyncComputeTaskPool, TaskPool};
 
 pub fn respawn_map(
     mut commands: Commands,
     shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
-    overpass_settings: ResMut<SettingsOverlay>,
+    overpass_settings: Res<SettingsOverlay>,
     mut map_bundle: ResMut<MapBundle>,
 ) {
     // We should spawn batch standard squares when zoomed out futher than a certain amount.
@@ -140,7 +140,11 @@ pub fn respawn_map(
     }
 }
 
+#[derive(Resource, Deref)]
+pub struct MapReceiver(Receiver<Vec<MapFeature>>);
+
 pub fn bbox_system(
+    mut commands: Commands,
     query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     primary_window_query: Query<&Window, With<PrimaryWindow>>,
     ortho_projection_query: Query<&mut OrthographicProjection, With<Camera>>,
@@ -156,8 +160,13 @@ pub fn bbox_system(
                 //if split_viewports.is_empty() {
                 map_bundle.map_points.spatial_index.insert(viewport.clone());
                 let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
-                get_overpass_data(vec![converted_bounding_box], map_bundle, &overpass_settings);  
-                
+                let mut map_bundle_clone = map_bundle.clone();
+                let mut overpass_settings_clone = overpass_settings.clone();
+                let (tx, rx) = bounded::<Vec<MapFeature>>(10);
+                std::thread::spawn(move || {
+                    tx.send(get_overpass_data(vec![converted_bounding_box], &mut map_bundle_clone, &mut overpass_settings_clone));
+                });
+                commands.insert_resource(MapReceiver(rx));
                 //} else {
                 //    bundle.map_points.spatial_index.insert_vec(split_viewports.clone());
                 //    let converted_vec = split_viewports.iter()
@@ -169,5 +178,15 @@ pub fn bbox_system(
                 error!("Failed to convert camera space to world space");
             }
         }
+    }
+}
+
+pub fn read_map_receiver(
+    map_receiver: Res<MapReceiver>,
+    mut map_bundle: ResMut<MapBundle>,
+) {
+    if let Ok(v) = map_receiver.0.try_recv() {
+        map_bundle.features.extend(v);
+        map_bundle.respawn = true;
     }
 }
