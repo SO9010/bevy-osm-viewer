@@ -1,5 +1,5 @@
 
-use bevy::{prelude::*, utils::HashMap, window::PrimaryWindow};
+use bevy::{color::palettes::css::BLACK, prelude::*, utils::HashMap, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
 use crossbeam_channel::{bounded, Receiver};
 
@@ -133,24 +133,35 @@ pub fn bbox_system(
         if let Some(viewport) = camera_space_to_world_space(query, primary_window_query, ortho_projection_query) {
             // Here we need to go through the bounding boxes and check if we have already gotten this bounding box 
             if !map_bundle.map_points.spatial_index.is_covered(&viewport) {
-                //let split_viewports = bundle.map_points.spatial_index.split(&viewport.clone());
-                //if split_viewports.is_empty() {
-                map_bundle.map_points.spatial_index.insert(viewport.clone());
-                let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
+                let (tx, rx) = bounded::<Vec<MapFeature>>(10);
                 let mut map_bundle_clone = map_bundle.clone();
                 let mut overpass_settings_clone = overpass_settings.clone();
-                let (tx, rx) = bounded::<Vec<MapFeature>>(10);
+                map_bundle.map_points.spatial_index.insert(viewport.clone());
+                let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
+                
                 std::thread::spawn(move || {
                     tx.send(get_overpass_data(vec![converted_bounding_box], &mut map_bundle_clone, &mut overpass_settings_clone));
                 });
+
+                let shape = shapes::RoundedPolygon {
+                    points: vec![
+                        Vec2::new(viewport.left, viewport.bottom),
+                        Vec2::new(viewport.right, viewport.bottom),
+                        Vec2::new(viewport.right, viewport.top),
+                        Vec2::new(viewport.left, viewport.top),
+                    ],
+                    radius: 25.0,
+                    closed: true,
+                };
+                commands.spawn((ShapeBundle {
+                    path: GeometryBuilder::build_as(&shape),
+                    transform: Transform::from_xyz(0.0, 0.0, -0.1),
+                    ..default()
+                },
+                    Fill::color(Srgba {red: 0.071, green: 0.071, blue: 0.071, alpha: 1.0 })
+                ));
                 commands.insert_resource(MapReceiver(rx));
-                //} else {
-                //    bundle.map_points.spatial_index.insert_vec(split_viewports.clone());
-                //    let converted_vec = split_viewports.iter()
-                //        .map(|viewport| world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y))
-                //        .collect::<Vec<_>>();
-                //    get_overpass_data(converted_vec, commands, map_bundle, shapes_query);
-                //}
+
             } else {
                 error!("Failed to convert camera space to world space");
             }

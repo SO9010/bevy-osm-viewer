@@ -59,6 +59,7 @@ fn ui_example_system(
                                 } else {
                                     category.all = true;
                                     category.set_children(true);
+                                    map_bundle.respawn = true;
                                     map_bundle.get_more_data = true;
                                 }
                                 if category.none {
@@ -71,6 +72,7 @@ fn ui_example_system(
                                 } else {
                                     category.none = true;
                                     category.set_children(false);
+                                    map_bundle.respawn = true;
                                     map_bundle.get_more_data = true;
                                 }
                                 if category.all {

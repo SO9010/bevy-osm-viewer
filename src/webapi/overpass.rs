@@ -1,8 +1,6 @@
-use std::{io::{BufRead, BufReader, Read}};
+use std::io::{BufRead, BufReader, Read};
 
 use bevy::prelude::*;
-use bevy_tasks::TaskPool;
-use bevy::tasks::AsyncComputeTaskPool;
 
 use crate::{map::{get_data_from_string_osm, MapBundle, MapFeature, WorldSpaceRect}, systems::SettingsOverlay};
 
@@ -13,7 +11,6 @@ pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &mut
 
     for bound in bounds {
         for (category, key) in overpass_settings.get_true_keys_with_category() {
-        // If you only want the program to fetch the specific data you want, you can use this code instead of the one below.
             if key == "n/a" {
                 continue;
             } else if key == "*" {
@@ -29,14 +26,6 @@ pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &mut
                 );
                 "#, category.to_lowercase(), key.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
             }
-            /* 
-            query.push_str(&format!(r#"
-            (
-            way["{}"]({},{},{},{}); 
-            );
-            "#, category.to_lowercase(), bound.bottom, bound.right, bound.top, bound.left));
-            */
-
         }
     }
 
@@ -102,14 +91,13 @@ pub fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
                 }
                 return vec![]
             } else if response.status() == 429 {
-                info!("Rate limited, waiting 10 seconds");
-                std::thread::sleep(std::time::Duration::from_secs(10));
+                info!("Rate limited, waiting 5 seconds");
+                std::thread::sleep(std::time::Duration::from_secs(5));
             } else {
                 status = 0;
             }
         }
     }
-    
     vec![]
 }
 

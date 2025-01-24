@@ -23,7 +23,7 @@ fn main() {
         }), ShapePlugin, PanCamPlugin))
         .add_plugins(EguiPlugin)
         .add_systems(Startup, setup_camera)
-        .insert_resource(ClearColor(Color::from(Srgba { red: 0.071, green: 0.071, blue: 0.071, alpha: 1.0 })))
+        .insert_resource(ClearColor(Color::from(Srgba { red: 0.1, green: 0.1, blue: 0.1, alpha: 1.0 })))
         .add_plugins(MapPlugin)
         .run();
 }

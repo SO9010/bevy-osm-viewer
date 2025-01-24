@@ -49,6 +49,7 @@ pub fn camera_change(
     mut map_bundle: ResMut<MapBundle>,
 ) {
     // TODO: Need to work on zoning what to spawn in and not to based of camera view.
+    // TODO: get the data before it needs to show!
     let projection = query.single_mut();
     if projection.is_changed() {
         camera_settings.scale = projection.scale;
@@ -57,7 +58,6 @@ pub fn camera_change(
                 if !category.disabled {
                     category.disabled = true;
                     map_bundle.respawn = true;
-                    map_bundle.get_more_data = true;
                 }
             }
         } else {
@@ -69,7 +69,6 @@ pub fn camera_change(
                 } 
             }
         }
-        
         /*
         if camera_settings.scale > 10.0 {
             if let Some(category) = overpass_settings.categories.get_mut("Highway") {
@@ -102,7 +101,7 @@ pub fn camera_space_to_world_space(
     if let Ok((_, transform)) = camera_query.get_single() {
         if let Ok(window) = primary_window_query.get_single() {
             let projection = query.single_mut();
-
+            
             // Get the window size
             let window_width = window.width();
             let window_height = window.height();
@@ -112,10 +111,10 @@ pub fn camera_space_to_world_space(
 
             // Compute the world-space rectangle
             // The reason for not dividing by 2 is to make the rectangle larger, as then it will mean that we can load more data
-            let left = camera_translation.x - (window_width * projection.scale);
-            let right = camera_translation.x + (window_width * projection.scale);
-            let bottom = camera_translation.y - (window_height * projection.scale);
-            let top = camera_translation.y + (window_height * projection.scale);
+            let left = camera_translation.x - (window_width * projection.scale) / 1.75;
+            let right = camera_translation.x + (window_width * projection.scale) / 1.75;
+            let bottom = camera_translation.y - (window_height * projection.scale) / 1.75;
+            let top = camera_translation.y + (window_height * projection.scale) / 1.75;
             
             
             return Some(WorldSpaceRect {
