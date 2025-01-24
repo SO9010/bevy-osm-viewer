@@ -58,6 +58,7 @@ pub fn camera_change(
                 if !category.disabled {
                     category.disabled = true;
                     map_bundle.respawn = true;
+                    map_bundle.get_more_data = true;
                 }
             }
         } else {
