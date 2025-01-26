@@ -3,6 +3,7 @@ use bevy::{color::palettes::css::BLACK, prelude::*, utils::HashMap, window::Prim
 use bevy_prototype_lyon::prelude::*;
 use crossbeam_channel::{bounded, Receiver};
 use rstar::RTree;
+use tess::path::polygon;
 
 use crate::{map::{get_map_data, world_space_rect_to_lat_long, MapBundle, MapFeature, WorldSpaceRect, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
 use super::{camera_space_to_world_space, SettingsOverlay};
@@ -48,11 +49,9 @@ pub fn respawn_map(
         }
         
         for feature in &map_bundle.features {
-            let mut skip_poly = true;
             let mut fill_color= Some(Srgba { red: 0.4, green: 0.400, blue: 0.400, alpha: 1.0 });
             let mut stroke_color = Srgba { red: 0.50, green: 0.500, blue: 0.500, alpha: 1.0 };
             let mut line_width = 1.0;
-            let width_multiplier = 3.5;
             let mut elevation = 1.0;
             for ((cat, key), _) in &feature_groups {
                 if key != "*" {
@@ -75,55 +74,44 @@ pub fn respawn_map(
                                 // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
                             });
                         }
-                        skip_poly = false;
+                        
+                        let mut points = feature.get_in_world_space();
+                        points.pop();                            
+                            
+                        if is_feature_in_viewport(&points, &viewport.as_ref().unwrap()) {
+                            let shape = shapes::Polygon {
+                                points: points.clone(),
+                                closed: false,
+                            };
+                
+                            if let Some(fill) = fill_color {
+                                batch_commands_closed.push((
+                                    ShapeBundle {
+                                        path: GeometryBuilder::build_as(&shape),
+                                        transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                        ..default()
+                                    },
+                                    Fill::color(fill),
+                                    Stroke::new(stroke_color, line_width as f32),
+                                    feature.clone(),
+                                ));
+                            } else {
+                                batch_commands_open.push((
+                                    ShapeBundle {
+                                        path: GeometryBuilder::build_as(&shape),
+                                        transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                        ..default()
+                                    },
+                                    Stroke::new(stroke_color, line_width as f32),
+                                    feature.clone(),
+                                ));
+                            }
+                        }
+                    }
                     }
                 }
             }
-            for polygon in &feature.geometry {
-                if skip_poly {
-                    continue;
-                }
-                
-                let points: Vec<_> = polygon
-                    .iter()
-                    .map(|point| {
-                        let projected = map_bundle.lat_lon_to_mercator(point.y, point.x);
-                        Vec2::new(projected.x, projected.y)
-                    })
-                    .collect();
-                    
-                if !is_feature_in_viewport(&points, &viewport.as_ref().unwrap()) {
-                    continue;
-                }
-                let shape = shapes::Polygon {
-                    points: points.clone(),
-                    closed: false,
-                };
-    
-                if let Some(fill) = fill_color {
-                    batch_commands_closed.push((
-                        ShapeBundle {
-                            path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, elevation),
-                            ..default()
-                        },
-                        Fill::color(fill),
-                        Stroke::new(stroke_color, line_width as f32),
-                        feature.clone(),
-                    ));
-                } else {
-                    batch_commands_open.push((
-                        ShapeBundle {
-                            path: GeometryBuilder::build_as(&shape),
-                            transform: Transform::from_xyz(0.0, 0.0, elevation),
-                            ..default()
-                        },
-                        Stroke::new(stroke_color, line_width as f32),
-                        feature.clone(),
-                    ));
-                }
-            }
-        }
+
         commands.spawn_batch(batch_commands_closed);
         commands.spawn_batch(batch_commands_open);
     }

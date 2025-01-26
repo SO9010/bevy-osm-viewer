@@ -10,6 +10,7 @@ bevy_pancam = { version = "0.16.0", features = ["bevy_egui"] }
 bevy_prototype_lyon = "0.13.0"
 bevy_tasks = "0.15.1"
 crossbeam-channel = "0.5.14"
+geo = "0.29.3"
 geojson = "0.24.1"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
