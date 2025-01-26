@@ -1,5 +1,5 @@
 [package]
-name = "bevy-geojson-viewer"
+name = "bevy-osm-viewer"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,6 +10,7 @@ bevy_pancam = { version = "0.16.0", features = ["bevy_egui"] }
 bevy_prototype_lyon = "0.13.0"
 bevy_tasks = "0.15.1"
 crossbeam-channel = "0.5.14"
+geojson = "0.24.1"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 rstar = "0.12.2"

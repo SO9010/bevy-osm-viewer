@@ -1,10 +1,11 @@
 use std::io::{BufRead, BufReader, Read};
 
 use bevy::prelude::*;
+use geojson::{Feature, GeoJson, Geometry, Value};
 
 use crate::{map::{get_data_from_string_osm, MapBundle, MapFeature, WorldSpaceRect}, systems::SettingsOverlay};
 
-pub fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &mut SettingsOverlay) -> String {
+fn build_overpass_query(bounds: Vec<WorldSpaceRect>, overpass_settings: &mut SettingsOverlay) -> String {
     let mut query = String::default();
     let opening = "[out:json];(";
     let closing = ");(._;>;);\nout body geom;";
@@ -50,12 +51,30 @@ pub fn get_overpass_data<'a>(bounds: Vec<WorldSpaceRect>, map_bundle: &mut MapBu
     vec![]
 }
 
-pub fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
+fn match_geometry(geom: &Geometry) {
+    match geom.value {
+        Value::Polygon(_) => println!("Matched a Polygon"),
+        Value::MultiPolygon(_) => println!("Matched a MultiPolygon"),
+        Value::GeometryCollection(ref gc) => {
+            println!("Matched a GeometryCollection");
+            // !!! GeometryCollections contain other Geometry types, and can
+            // nest — we deal with this by recursively processing each geometry
+            for geometry in gc {
+                match_geometry(geometry)
+            }
+        }
+        // Point, LineString, and their Multi– counterparts
+        _ => println!("Matched some other geometry"),
+    }
+}
+
+fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
 ) -> Vec<MapFeature> {
     if query.is_empty() {
         return vec![];
     }
-    let url = "https://overpass-api.de/api/interpreter";
+    // let url = "https://overpass-api.de/api/interpreter";
+    let url = "http://localhost:12345/api/interpreter";
     info!("Sending query: {}", query);
     let mut status = 429;
     while status == 429 {
@@ -65,6 +84,7 @@ pub fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
                 let reader: BufReader<Box<dyn Read + Send + Sync>> = BufReader::new(response.into_reader());
             
                 let mut response_body = String::default();
+                info!("Finished query...");
                 // Accumulate chunks into a single string
                 for line in reader.lines() {
                     match line {

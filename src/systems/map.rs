@@ -2,8 +2,9 @@
 use bevy::{color::palettes::css::BLACK, prelude::*, utils::HashMap, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
 use crossbeam_channel::{bounded, Receiver};
+use rstar::RTree;
 
-use crate::{map::{world_space_rect_to_lat_long, MapBundle, MapFeature, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
+use crate::{map::{get_map_data, world_space_rect_to_lat_long, MapBundle, MapFeature, WorldSpaceRect, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
 use super::{camera_space_to_world_space, SettingsOverlay};
 
 pub fn respawn_map(
@@ -11,12 +12,19 @@ pub fn respawn_map(
     shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
     overpass_settings: Res<SettingsOverlay>,
     mut map_bundle: ResMut<MapBundle>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    primary_window_query: Query<&Window, With<PrimaryWindow>>,
+    mut query: Query<&mut OrthographicProjection, With<Camera>>,
 ) {
-    // We should spawn batch standard squares when zoomed out futher than a certain amount.
-    // We should only spawn the entities we want to see!
     if map_bundle.respawn {
         info!("Respawning map...");
         map_bundle.respawn = false;
+
+        // Determine the viewport bounds
+        let (camera, camera_transform) = camera_query.single();
+        let window = primary_window_query.single();
+        let viewport = camera_space_to_world_space(camera_transform, window, query.single().clone(), 2.0);
+
         let mut batch_commands_closed: Vec<(ShapeBundle, Fill, Stroke, MapFeature)> = Vec::new();
         let mut batch_commands_open: Vec<(ShapeBundle, Stroke, MapFeature)> = Vec::new();
     
@@ -75,6 +83,7 @@ pub fn respawn_map(
                 if skip_poly {
                     continue;
                 }
+                
                 let points: Vec<_> = polygon
                     .iter()
                     .map(|point| {
@@ -82,7 +91,10 @@ pub fn respawn_map(
                         Vec2::new(projected.x, projected.y)
                     })
                     .collect();
-    
+                    
+                if !is_feature_in_viewport(&points, &viewport.as_ref().unwrap()) {
+                    continue;
+                }
                 let shape = shapes::Polygon {
                     points: points.clone(),
                     closed: false,
@@ -117,6 +129,14 @@ pub fn respawn_map(
     }
 }
 
+fn is_feature_in_viewport(feature: &Vec<Vec2>, viewport: &WorldSpaceRect) -> bool {
+    feature.iter().any(|point| {
+        point.x >= viewport.left &&
+        point.x <= viewport.right &&
+        point.y >= viewport.bottom &&
+        point.y <= viewport.top
+    })
+}
 #[derive(Resource, Deref)]
 pub struct MapReceiver(Receiver<Vec<MapFeature>>);
 
@@ -130,16 +150,23 @@ pub fn bbox_system(
 ) {
     if map_bundle.get_more_data {
         map_bundle.get_more_data = false;
-        if let Some(viewport) = camera_space_to_world_space(query, primary_window_query, ortho_projection_query) {
+        let (camera, camera_transform) = query.single();
+        let window = primary_window_query.single();
+
+        if let Some(viewport) = camera_space_to_world_space(camera_transform, window, ortho_projection_query.single().clone(), 1.75) {
             // Here we need to go through the bounding boxes and check if we have already gotten this bounding box 
             if !map_bundle.map_points.spatial_index.is_covered(&viewport) {
                 let (tx, rx) = bounded::<Vec<MapFeature>>(10);
+                let tx_clone = tx.clone();
                 let mut map_bundle_clone = map_bundle.clone();
                 let mut overpass_settings_clone = overpass_settings.clone();
                 map_bundle.map_points.spatial_index.insert(viewport.clone());
                 let converted_bounding_box = world_space_rect_to_lat_long(viewport.clone(), SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
                 
+
                 std::thread::spawn(move || {
+                    //tx.send(get_map_data("green-belt.geojson").unwrap());
+
                     tx.send(get_overpass_data(vec![converted_bounding_box], &mut map_bundle_clone, &mut overpass_settings_clone));
                 });
 
@@ -174,7 +201,9 @@ pub fn read_map_receiver(
     mut map_bundle: ResMut<MapBundle>,
 ) {
     if let Ok(v) = map_receiver.0.try_recv() {
-        map_bundle.features.extend(v);
+        for feature in &v {
+            map_bundle.features.insert(feature.clone());
+        }
         map_bundle.respawn = true;
     }
 }

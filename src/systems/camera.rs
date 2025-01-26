@@ -94,37 +94,32 @@ pub fn camera_change(
     }
 }
 
+/// Overflow is the amount of world space that is loaded outside of the window, it is a multiplier of the window size
 pub fn camera_space_to_world_space(
-    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    primary_window_query: Query<&Window, With<PrimaryWindow>>,
-    mut query: Query<&mut OrthographicProjection, With<Camera>>,
+    transform: &GlobalTransform,
+    window: &Window,
+    projection: OrthographicProjection,
+    overflow: f32,
 ) -> Option<WorldSpaceRect> {
-    if let Ok((_, transform)) = camera_query.get_single() {
-        if let Ok(window) = primary_window_query.get_single() {
-            let projection = query.single_mut();
-            
-            // Get the window size
-            let window_width = window.width();
-            let window_height = window.height();
+    // Get the window size
+    let window_width = window.width();
+    let window_height = window.height();
 
-            // Get the camera's position
-            let camera_translation = transform.translation();
+    // Get the camera's position
+    let camera_translation = transform.translation();
 
-            // Compute the world-space rectangle
-            // The reason for not dividing by 2 is to make the rectangle larger, as then it will mean that we can load more data
-            let left = camera_translation.x - (window_width * projection.scale) / 1.75;
-            let right = camera_translation.x + (window_width * projection.scale) / 1.75;
-            let bottom = camera_translation.y - (window_height * projection.scale) / 1.75;
-            let top = camera_translation.y + (window_height * projection.scale) / 1.75;
-            
-            
-            return Some(WorldSpaceRect {
-                left,
-                right,
-                bottom,
-                top,
-            });
-        }
-    }
-    None
+    // Compute the world-space rectangle
+    // The reason for not dividing by 2 is to make the rectangle larger, as then it will mean that we can load more data
+    let left = camera_translation.x - ((window_width * projection.scale) / 2.0) * overflow;
+    let right = camera_translation.x + ((window_width * projection.scale) / 2.0) * overflow;
+    let bottom = camera_translation.y - ((window_height * projection.scale) / 2.0)* overflow;
+    let top = camera_translation.y + ((window_height * projection.scale) / 2.0) * overflow;
+    
+    
+    return Some(WorldSpaceRect {
+        left,
+        right,
+        bottom,
+        top,
+    });
 }

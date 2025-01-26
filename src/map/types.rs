@@ -1,30 +1,46 @@
 use bevy::prelude::*;
-use super::projection::lat_lon_to_mercator;
+use super::projection::lat_lon_to_world_mercator;
 use rstar::{RTree, RTreeObject, AABB};
 
 // E.g Cambridge as the Starting point, make this a global entity/constant
 pub const STARTING_LONG_LAT: Vec2 = Vec2::new(0.1494117, 52.192_37);
 pub const SCALE: f32 = 10000000.0;
 
+
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct MapFeature {
     pub id: String,
     pub properties: serde_json::Value,  // Use serde_json for flexible properties such as buidling type
-    pub geometry: Vec<Vec<Vec2>>,       // Nested Vec2 to represent Polygon coordinates
+    pub geometry: Vec<Vec<Vec2>>,       
 }
 
-impl MapFeature {
-    pub fn is_similar(&self, other: MapFeature) -> bool {
-        if self.properties.get("highway").is_some() || other.properties.get("highway").is_some() {
-            return false;
-        }
-        for geom in &self.geometry {
-            for other_geom in &other.geometry {
-                if polygon_area(geom) == polygon_area(other_geom) {
+impl RTreeObject for MapFeature {
+    type Envelope = AABB<[f32; 2]>;
+
+    fn envelope(&self) -> Self::Envelope {
+        let mut min_x = f32::MAX;
+        let mut min_y = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut max_y = f32::MIN;
+
+        for polygon in &self.geometry {
+            for point in polygon {
+                if point.x < min_x {
+                    min_x = point.x;
+                }
+                if point.y < min_y {
+                    min_y = point.y;
+                }
+                if point.x > max_x {
+                    max_x = point.x;
+                }
+                if point.y > max_y {
+                    max_y = point.y;
                 }
             }
         }
-        false 
+
+        AABB::from_corners([min_x, min_y], [max_x, max_y])
     }
 }
 
@@ -192,11 +208,10 @@ pub struct MapPoints {
     pub refrencee_point: RefrencePoint, // Refrence point of the map, this is used to calculate the scale and offset
 }
 
-
 #[derive(Resource, Clone, Debug)]
 pub struct MapBundle {
     /// A collection of map features, please put this in a spatial hashmap
-    pub features: Vec<MapFeature>,
+    pub features: RTree<MapFeature>,
 
     /// Map points of the map, this is used to calculate the scale and offset
     pub map_points: MapPoints,
@@ -212,7 +227,7 @@ pub struct MapBundle {
 impl MapBundle {
     pub fn new(long: f32, lat: f32, scale: f32) -> Self {
         Self {
-            features: Vec::new(),
+            features: RTree::new(),
             map_points: MapPoints {
                 refrencee_point: RefrencePoint::new(long, lat),
                 spatial_index: SpatialIndex::new(),
@@ -225,6 +240,6 @@ impl MapBundle {
 
     // Method to apply a Mercator projection to a coordinate, otherwise the coordinates will be too small to be rendered
     pub fn lat_lon_to_mercator(&self, lat: f32, lon: f32) -> Vec2 {
-        lat_lon_to_mercator(lat, lon, self.scale, self.map_points.refrencee_point.long, self.map_points.refrencee_point.lat)
+        lat_lon_to_world_mercator(lat, lon, self.scale, self.map_points.refrencee_point.long, self.map_points.refrencee_point.lat)
     }
 }
