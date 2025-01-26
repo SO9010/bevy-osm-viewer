@@ -11,6 +11,7 @@ pub const SCALE: f32 = 10000000.0;
 pub struct MapFeature {
     pub id: String,
     pub properties: serde_json::Value,  // Use serde_json for flexible properties such as buidling type
+    // Next make this a spacial hashmap
     pub geometry: Vec<Vec<Vec2>>,       
 }
 
