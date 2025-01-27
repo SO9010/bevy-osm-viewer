@@ -33,7 +33,7 @@ pub fn respawn_map(
         // Determine the viewport bounds
         let (_, camera_transform) = camera_query.single();
         let window = primary_window_query.single();
-        let viewport = camera_space_to_world_space(camera_transform, window, query.single().clone(), 2.0).unwrap();
+        let viewport = camera_space_to_world_space(camera_transform, window, query.single().clone(), 1.75).unwrap();
 
         let viewport_rect = world_space_rect_to_lat_long(viewport, SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
         let left = viewport_rect.left.min(viewport_rect.right);
