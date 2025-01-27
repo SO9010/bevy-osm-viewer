@@ -2,7 +2,8 @@
 use bevy::{color::palettes::css::BLACK, prelude::*, utils::HashMap, window::PrimaryWindow};
 use bevy_prototype_lyon::prelude::*;
 use crossbeam_channel::{bounded, Receiver};
-use rstar::RTree;
+use geo::{BoundingRect, Intersects};
+use rstar::{RTree, AABB};
 use tess::path::polygon;
 
 use crate::{map::{get_map_data, world_space_rect_to_lat_long, MapBundle, MapFeature, WorldSpaceRect, SCALE, STARTING_LONG_LAT}, webapi::get_overpass_data};
@@ -24,7 +25,14 @@ pub fn respawn_map(
         // Determine the viewport bounds
         let (camera, camera_transform) = camera_query.single();
         let window = primary_window_query.single();
-        let viewport = camera_space_to_world_space(camera_transform, window, query.single().clone(), 2.0);
+        let viewport = camera_space_to_world_space(camera_transform, window, query.single().clone(), 2.0).unwrap();
+        
+        let viewport_rect = world_space_rect_to_lat_long(viewport, SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
+        let viewport_aabb = AABB::from_corners(
+            [viewport_rect.left as f64, viewport_rect.bottom as f64],
+            [viewport_rect.right as f64, viewport_rect.top as f64],
+        );
+        let intersection_candidates = map_bundle.features.locate_with_selection_function(rstar::algorithm::selection_functions::SelectInEnvelopeFuncIntersecting::new(&viewport_aabb));
 
         let mut batch_commands_closed: Vec<(ShapeBundle, Fill, Stroke, MapFeature)> = Vec::new();
         let mut batch_commands_open: Vec<(ShapeBundle, Stroke, MapFeature)> = Vec::new();
@@ -39,8 +47,9 @@ pub fn respawn_map(
         // Group features by category and key, the string is thing to look for
         // (cat, key)
         let mut feature_groups: HashMap<(String, String), Vec<&MapFeature>> = HashMap::new();
-    
-        for feature in &map_bundle.features {
+        
+        for feature in intersection_candidates {
+            info!("Feature: {:?}", feature);
             for (cat, key) in &enabled_setting {
                 if !disabled_setting.contains(cat) {
                     feature_groups.entry((cat.to_string(), key.to_string())).or_default().push(feature);
@@ -78,53 +87,51 @@ pub fn respawn_map(
                         let mut points = feature.get_in_world_space();
                         points.pop();                            
                             
-                        if is_feature_in_viewport(&points, &viewport.as_ref().unwrap()) {
-                            let shape = shapes::Polygon {
-                                points: points.clone(),
-                                closed: false,
-                            };
-                
-                            if let Some(fill) = fill_color {
-                                batch_commands_closed.push((
-                                    ShapeBundle {
-                                        path: GeometryBuilder::build_as(&shape),
-                                        transform: Transform::from_xyz(0.0, 0.0, elevation),
-                                        ..default()
-                                    },
-                                    Fill::color(fill),
-                                    Stroke::new(stroke_color, line_width as f32),
-                                    feature.clone(),
-                                ));
-                            } else {
-                                batch_commands_open.push((
-                                    ShapeBundle {
-                                        path: GeometryBuilder::build_as(&shape),
-                                        transform: Transform::from_xyz(0.0, 0.0, elevation),
-                                        ..default()
-                                    },
-                                    Stroke::new(stroke_color, line_width as f32),
-                                    feature.clone(),
-                                ));
-                            }
+                        let shape = shapes::Polygon {
+                            points: points.clone(),
+                            closed: false,
+                        };
+            
+                        if let Some(fill) = fill_color {
+                            batch_commands_closed.push((
+                                ShapeBundle {
+                                    path: GeometryBuilder::build_as(&shape),
+                                    transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                    ..default()
+                                },
+                                Fill::color(fill),
+                                Stroke::new(stroke_color, line_width as f32),
+                                feature.clone(),
+                            ));
+                        } else {
+                            batch_commands_open.push((
+                                ShapeBundle {
+                                    path: GeometryBuilder::build_as(&shape),
+                                    transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                    ..default()
+                                },
+                                Stroke::new(stroke_color, line_width as f32),
+                                feature.clone(),
+                            ));
                         }
-                    }
                     }
                 }
             }
+        }
 
         commands.spawn_batch(batch_commands_closed);
         commands.spawn_batch(batch_commands_open);
     }
 }
 
-fn is_feature_in_viewport(feature: &Vec<Vec2>, viewport: &WorldSpaceRect) -> bool {
-    feature.iter().any(|point| {
-        point.x >= viewport.left &&
-        point.x <= viewport.right &&
-        point.y >= viewport.bottom &&
-        point.y <= viewport.top
-    })
+fn is_feature_in_viewport(feature: &MapFeature, viewport: &WorldSpaceRect) -> bool {
+    let viewport_rect = geo::Rect::new(
+        geo::Coord { x: viewport.left as f64, y: viewport.bottom as f64 },
+        geo::Coord { x: viewport.right as f64, y: viewport.top as f64 },
+    );
+    feature.geometry.intersects(&viewport_rect)
 }
+
 #[derive(Resource, Deref)]
 pub struct MapReceiver(Receiver<Vec<MapFeature>>);
 
@@ -141,7 +148,7 @@ pub fn bbox_system(
         let (camera, camera_transform) = query.single();
         let window = primary_window_query.single();
 
-        if let Some(viewport) = camera_space_to_world_space(camera_transform, window, ortho_projection_query.single().clone(), 1.75) {
+        if let Some(viewport) = camera_space_to_world_space(camera_transform, window, ortho_projection_query.single().clone(), 1.25) {
             // Here we need to go through the bounding boxes and check if we have already gotten this bounding box 
             if !map_bundle.map_points.spatial_index.is_covered(&viewport) {
                 let (tx, rx) = bounded::<Vec<MapFeature>>(10);
