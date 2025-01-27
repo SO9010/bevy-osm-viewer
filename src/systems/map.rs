@@ -22,34 +22,38 @@ pub fn respawn_map(
         info!("Respawning map...");
         map_bundle.respawn = false;
 
-        // Determine the viewport bounds
-        let (camera, camera_transform) = camera_query.single();
-        let window = primary_window_query.single();
-        let viewport = camera_space_to_world_space(camera_transform, window, query.single().clone(), 2.0).unwrap();
-        
-        let viewport_rect = world_space_rect_to_lat_long(viewport, SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
-        let viewport_aabb = AABB::from_corners(
-            [viewport_rect.left as f64, viewport_rect.bottom as f64],
-            [viewport_rect.right as f64, viewport_rect.top as f64],
-        );
-        let intersection_candidates = map_bundle.features.locate_with_selection_function(rstar::algorithm::selection_functions::SelectInEnvelopeFuncIntersecting::new(&viewport_aabb));
-
-        let mut batch_commands_closed: Vec<(ShapeBundle, Fill, Stroke, MapFeature)> = Vec::new();
-        let mut batch_commands_open: Vec<(ShapeBundle, Stroke, MapFeature)> = Vec::new();
-    
         for (entity, _, _, _) in shapes_query.iter() {
             commands.entity(entity).despawn_recursive(); // Use despawn_recursive instead of despawn
         }
-    
+
+        let mut batch_commands_closed: Vec<(ShapeBundle, Fill, Stroke, MapFeature)> = Vec::new();
+        let mut batch_commands_open: Vec<(ShapeBundle, Stroke, MapFeature)> = Vec::new();
+
+
+        // Determine the viewport bounds
+        let (_, camera_transform) = camera_query.single();
+        let window = primary_window_query.single();
+        let viewport = camera_space_to_world_space(camera_transform, window, query.single().clone(), 1.0).unwrap();
+
+        let viewport_rect = world_space_rect_to_lat_long(viewport, SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
+        let left = viewport_rect.left.min(viewport_rect.right);
+        let right = viewport_rect.left.max(viewport_rect.right);
+        let bottom = viewport_rect.bottom.min(viewport_rect.top);
+        let top = viewport_rect.bottom.max(viewport_rect.top);
+        let viewport_aabb = AABB::from_corners(
+            [bottom as f64, left as f64],
+            [top as f64, right as f64],
+        );
+        let intersection_candidates = map_bundle.features.locate_in_envelope_intersecting(&viewport_aabb).collect::<Vec<_>>();
+
         let disabled_setting = overpass_settings.get_disabled_categories();
         let enabled_setting = overpass_settings.get_true_keys_with_category_with_individual();
-    
+
         // Group features by category and key, the string is thing to look for
         // (cat, key)
         let mut feature_groups: HashMap<(String, String), Vec<&MapFeature>> = HashMap::new();
         
-        for feature in intersection_candidates {
-            info!("Feature: {:?}", feature);
+        for feature in &map_bundle.features {
             for (cat, key) in &enabled_setting {
                 if !disabled_setting.contains(cat) {
                     feature_groups.entry((cat.to_string(), key.to_string())).or_default().push(feature);
@@ -57,7 +61,7 @@ pub fn respawn_map(
             }
         }
         
-        for feature in &map_bundle.features {
+        for feature in intersection_candidates {
             let mut fill_color= Some(Srgba { red: 0.4, green: 0.400, blue: 0.400, alpha: 1.0 });
             let mut stroke_color = Srgba { red: 0.50, green: 0.500, blue: 0.500, alpha: 1.0 };
             let mut line_width = 1.0;
@@ -83,7 +87,7 @@ pub fn respawn_map(
                                 // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
                             });
                         }
-                        
+
                         let mut points = feature.get_in_world_space();
                         points.pop();                            
                             

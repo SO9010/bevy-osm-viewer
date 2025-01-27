@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::hashbrown::HashMap};
 use bevy_egui::egui::{self, Color32};
 
 #[derive(Resource, Clone)]
 pub struct SettingsOverlay {
+    // String = cat name, Category = data and children
     pub categories: BTreeMap<String, Category>,
 }
 
@@ -883,24 +884,39 @@ impl SettingsOverlay {
             }).collect::<Vec<_>>()
     }
 
+    /// Returns a hashmap of the true keys with their category and key
     pub fn get_true_keys_with_category_with_individual(&self) -> Vec<(String, String)> {
         self.categories.iter()
-            .flat_map(|(category_name, category)| {
-                if category.disabled {
-                    return vec![];
-                }
-                else {
-                    category.items.iter()
-                    .filter_map(move |(item_name, &value)| {
-                        if value.0 {
-                            Some((category_name.clone(), item_name.clone()))
-                        } else {
-                            None
-                        }
-                    }).collect::<Vec<_>>()
-                }
-            }).collect::<Vec<_>>()
+        .flat_map(|(category_name, category)| {
+            if category.disabled {
+                return vec![];
+            }
+            else {
+                category.items.iter()
+                .filter_map(move |(item_name, &value)| {
+                    if value.0 {
+                        Some((category_name.clone(), item_name.clone()))
+                    } else {
+                        None
+                    }
+                }).collect::<Vec<_>>()
+            }
+        }).collect::<Vec<_>>()
     }
+
+    /*
+    pub fn get_true_keys_with_category_with_individual(&self) -> HashMap<String, String> {
+        let mut keys = HashMap::new();
+        for (cat, key) in self.categories.iter() {
+            for (k, (active,_)) in key.items.iter() {
+                if *active {
+                    keys.insert(cat.clone(), k.clone());
+                }
+            }
+        }
+        keys
+    }
+    */
 
     pub fn get_disabled_categories(&self) -> Vec<String> {
         self.categories.iter()
