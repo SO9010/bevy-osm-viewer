@@ -1,4 +1,4 @@
-use bevy::{core_pipeline::bloom::Bloom, prelude::*, window::PrimaryWindow};
+use bevy::{core_pipeline::bloom::Bloom, prelude::*};
 use bevy_pancam::{DirectionKeys, PanCam};
 
 use crate::map::{MapBundle, WorldSpaceRect};
@@ -61,14 +61,12 @@ pub fn camera_change(
                     map_bundle.get_more_data = true;
                 }
             }
-        } else {
-            if let Some(category) = overpass_settings.categories.get_mut("Building") {
-                if category.disabled {
-                    category.disabled = false;
-                    map_bundle.respawn = true;
-                    map_bundle.get_more_data = true;
-                } 
-            }
+        } else if let Some(category) = overpass_settings.categories.get_mut("Building") {
+            if category.disabled {
+                category.disabled = false;
+                map_bundle.respawn = true;
+                map_bundle.get_more_data = true;
+            } 
         }
         /*
         if camera_settings.scale > 10.0 {
@@ -116,10 +114,10 @@ pub fn camera_space_to_world_space(
     let top = camera_translation.y + ((window_height * projection.scale) / 2.0) * overflow;
     
     
-    return Some(WorldSpaceRect {
+    Some(WorldSpaceRect {
         left,
         right,
         bottom,
         top,
-    });
+    })
 }

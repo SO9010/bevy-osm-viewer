@@ -2,7 +2,6 @@ use std::{fs::File, io::BufReader};
 
 use bevy::prelude::*;
 use geojson::GeoJson;
-use rstar::RTree;
 use serde::{Deserialize, Serialize};
 
 use super::MapFeature;
@@ -20,7 +19,7 @@ pub fn get_data_from_string_osm(data: &str) -> Result<Vec<MapFeature>, Box<dyn s
             features.push(MapFeature {
                 id: way.id.to_string(),
                 properties: way.tags.unwrap_or_default(),
-                geometry: geo::Polygon::new(geo::LineString(geometry.into_iter().map(|p| geo::Coord { x: p.lat as f64, y: p.lon as f64 }).collect()), vec![]),
+                geometry: geo::Polygon::new(geo::LineString(geometry.into_iter().map(|p| geo::Coord { x: p.lat, y: p.lon }).collect()), vec![]),
             });
         }
     }
@@ -48,16 +47,16 @@ pub fn get_map_data(file_path: &str) -> Result<Vec<MapFeature>, Box<dyn std::err
                     geojson::Value::Polygon(poly) => {
                         for ring in poly {
                             
-                            geo = geo::Polygon::new(geo::LineString(ring.into_iter().map(|p| geo::Coord { x: p[0] as f64, y: p[1] as f64 }).collect()), vec![]);
+                            geo = geo::Polygon::new(geo::LineString(ring.into_iter().map(|p| geo::Coord { x: p[0], y: p[1] }).collect()), vec![]);
                         }
                     }
                     geojson::Value::LineString(line) => {
-                        geo = geo::Polygon::new(geo::LineString(line.into_iter().map(|p| geo::Coord { x: p[0] as f64, y: p[1] as f64 }).collect()), vec![]);
+                        geo = geo::Polygon::new(geo::LineString(line.into_iter().map(|p| geo::Coord { x: p[0], y: p[1] }).collect()), vec![]);
                     }
                     geojson::Value::MultiPolygon(multi_poly) => {
                         for poly in multi_poly {
                             for ring in poly {
-                                geo = geo::Polygon::new(geo::LineString(ring.into_iter().map(|p| geo::Coord { x: p[0] as f64, y: p[1] as f64 }).collect()), vec![]);
+                                geo = geo::Polygon::new(geo::LineString(ring.into_iter().map(|p| geo::Coord { x: p[0], y: p[1] }).collect()), vec![]);
                             }
                         }
                     }

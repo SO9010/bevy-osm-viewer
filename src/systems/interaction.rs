@@ -5,7 +5,7 @@ use bevy_prototype_lyon::prelude::*;
 
 use crate::map::{MapBundle, MapFeature};
 
-use super::{OccupiedScreenSpace, SettingsOverlay};
+use super::OccupiedScreenSpace;
 
 /// Handles keyboard input and updates map features accordingly.
 pub fn handle_keyboard(
@@ -98,7 +98,7 @@ pub fn check_map_info(
     for (id, window_state) in persistent_info_windows.windows.iter() {
         egui::Window::new(id.clone())
         .show(contexts.ctx_mut(), |ui| {
-            ui.label(&window_state.to_string());
+            ui.label(window_state.to_string());
             if ui.button("Close").clicked() {
                 windows_to_remove.push(id.clone());
             }

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::{egui::{self, color_picker::{color_edit_button_rgb, color_edit_button_rgba, color_edit_button_srgba, color_picker_color32}, Checkbox, Color32, RichText}, EguiContexts};
+use bevy_egui::{egui::{self, color_picker::color_edit_button_srgba, Color32, RichText}, EguiContexts};
 use bevy_prototype_lyon::entity::Path;
 use crate::{map::MapBundle, systems::settings::egui::color_picker::Alpha::Opaque};
 

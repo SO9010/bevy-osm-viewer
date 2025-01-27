@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Read};
 
 use bevy::prelude::*;
-use geojson::{Feature, GeoJson, Geometry, Value};
+use geojson::{Geometry, Value};
 
 use crate::{map::{get_data_from_string_osm, MapBundle, MapFeature, WorldSpaceRect}, systems::SettingsOverlay};
 

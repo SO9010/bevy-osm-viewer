@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use bevy::{prelude::*, utils::hashbrown::HashMap};
+use bevy::prelude::*;
 use bevy_egui::egui::{self, Color32};
 
 #[derive(Resource, Clone)]
@@ -867,7 +867,7 @@ impl SettingsOverlay {
         self.categories.iter()
             .flat_map(|(category_name, category)| {
                 if category.disabled {
-                    return vec![];
+                    vec![]
                 }
                 else if category.all {
                     vec![(category_name.clone(), "*".to_string())]
@@ -889,7 +889,7 @@ impl SettingsOverlay {
         self.categories.iter()
         .flat_map(|(category_name, category)| {
             if category.disabled {
-                return vec![];
+                vec![]
             }
             else {
                 category.items.iter()
