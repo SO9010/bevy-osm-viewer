@@ -73,8 +73,8 @@ fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
     if query.is_empty() {
         return vec![];
     }
-    // let url = "https://overpass-api.de/api/interpreter";
-    let url = "http://localhost:12345/api/interpreter";
+    let url = "https://overpass-api.de/api/interpreter";
+    // let url = "http://localhost:12345/api/interpreter";
     info!("Sending query: {}", query);
     let mut status = 429;
     while status == 429 {
@@ -98,6 +98,7 @@ fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
     
                 let map_features = map_bundle.features.clone();
                 let features = get_data_from_string_osm(&response_body);
+                info!("Status of rspns: {}", status);
                 if features.is_ok() {
                     let new_features: Vec<_> = features.unwrap()
                     .into_iter()

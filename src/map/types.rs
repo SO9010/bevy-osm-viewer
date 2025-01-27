@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use geo::BoundingRect;
 use super::projection::lat_lon_to_world_mercator;
 use rstar::{RTree, RTreeObject, AABB};
 
@@ -6,12 +7,40 @@ use rstar::{RTree, RTreeObject, AABB};
 pub const STARTING_LONG_LAT: Vec2 = Vec2::new(0.1494117, 52.192_37);
 pub const SCALE: f32 = 10000000.0;
 
+#[derive(Component, Clone, Debug)]
+pub struct MapFeature {
+    pub id: String,
+    pub properties: serde_json::Value,  // Use serde_json for flexible properties such as buidling type
+    // Next make this a spacial hashmap, it becomes slower to check if a point is in a polygon the more there are
+    pub geometry: geo::Polygon    // Next make this a spacial hashmap
+}
+impl MapFeature {
+    pub fn get_in_world_space(&self) -> Vec<Vec2> {
+        let new_geo = self.geometry.clone();
+        let exterior = new_geo.exterior().clone();
+        let mut new_points = Vec::new();
+        for coord in exterior {
+            let point = lat_lon_to_world_mercator(coord.x as f32, coord.y as f32, SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
+            new_points.push(point);
+        }
+        new_points
+    }
+}
+impl RTreeObject for MapFeature {
+    type Envelope = AABB<[f64; 2]>;
 
+    fn envelope(&self) -> Self::Envelope {
+        let bbox = self.geometry.bounding_rect().unwrap();
+        AABB::from_corners([bbox.min().x, bbox.min().y], [bbox.max().x, bbox.max().y])
+    }
+}
+
+/*
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct MapFeature {
     pub id: String,
     pub properties: serde_json::Value,  // Use serde_json for flexible properties such as buidling type
-    // Next make this a spacial hashmap
+    // Next make this a spacial hashmap, it becomes
     pub geometry: Vec<Vec<Vec2>>,       
 }
 
@@ -44,6 +73,7 @@ impl RTreeObject for MapFeature {
         AABB::from_corners([min_x, min_y], [max_x, max_y])
     }
 }
+*/
 
 fn polygon_area(geometry: &Vec<Vec2>) -> f32 {
     let mut area: f32 = 0.0;

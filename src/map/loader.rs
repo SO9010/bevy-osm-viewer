@@ -2,6 +2,7 @@ use std::{fs::File, io::BufReader};
 
 use bevy::prelude::*;
 use geojson::GeoJson;
+use rstar::RTree;
 use serde::{Deserialize, Serialize};
 
 use super::MapFeature;
@@ -16,15 +17,10 @@ pub fn get_data_from_string_osm(data: &str) -> Result<Vec<MapFeature>, Box<dyn s
         // Ensure geometry exists
         let geometry = way.geometry;
         if !geometry.is_empty() {
-            let points: Vec<Vec2> = geometry
-                .iter()
-                .map(|coords| Vec2::new(coords.lon as f32, coords.lat as f32))
-                .collect();
-
             features.push(MapFeature {
                 id: way.id.to_string(),
                 properties: way.tags.unwrap_or_default(),
-                geometry: vec![points.clone()],
+                geometry: geo::Polygon::new(geo::LineString(geometry.into_iter().map(|p| geo::Coord { x: p.lat as f64, y: p.lon as f64 }).collect()), vec![]),
             });
         }
     }
@@ -43,38 +39,25 @@ pub fn get_map_data(file_path: &str) -> Result<Vec<MapFeature>, Box<dyn std::err
     let geojson = GeoJson::from_reader(reader)?;
 
     let mut features = Vec::new();
-
+    let mut geo = geo::Polygon::new(geo::LineString(vec![]), vec![]);
     if let GeoJson::FeatureCollection(collection) = geojson {
         for feature in collection.features {
             if let Some(geometry) = feature.geometry {
-                let mut coordinates = Vec::new();
-                let mut road_coords = Vec::new();
 
                 match geometry.value {
                     geojson::Value::Polygon(poly) => {
                         for ring in poly {
-                            let points: Vec<Vec2> = ring
-                                .iter()
-                                .map(|pos| Vec2::new(pos[0] as f32, pos[1] as f32))
-                                .collect();
-                            coordinates.push(points);
+                            
+                            geo = geo::Polygon::new(geo::LineString(ring.into_iter().map(|p| geo::Coord { x: p[0] as f64, y: p[1] as f64 }).collect()), vec![]);
                         }
                     }
                     geojson::Value::LineString(line) => {
-                        let points: Vec<Vec2> = line
-                            .iter()
-                            .map(|pos| Vec2::new(pos[0] as f32, pos[1] as f32))
-                            .collect();
-                        road_coords.push(points);
+                        geo = geo::Polygon::new(geo::LineString(line.into_iter().map(|p| geo::Coord { x: p[0] as f64, y: p[1] as f64 }).collect()), vec![]);
                     }
                     geojson::Value::MultiPolygon(multi_poly) => {
                         for poly in multi_poly {
                             for ring in poly {
-                                let points: Vec<Vec2> = ring
-                                    .iter()
-                                    .map(|pos| Vec2::new(pos[0] as f32, pos[1] as f32))
-                                    .collect();
-                                coordinates.push(points);
+                                geo = geo::Polygon::new(geo::LineString(ring.into_iter().map(|p| geo::Coord { x: p[0] as f64, y: p[1] as f64 }).collect()), vec![]);
                             }
                         }
                     }
@@ -86,7 +69,7 @@ pub fn get_map_data(file_path: &str) -> Result<Vec<MapFeature>, Box<dyn std::err
                         .id
                         .map_or_else(|| String::from("unknown"), |id| format!("{:?}", id)),
                     properties: serde_json::Value::Object(feature.properties.unwrap_or_default()),
-                    geometry: coordinates,
+                    geometry: geo.clone(),
                 });
             }
         }
