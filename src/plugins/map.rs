@@ -13,7 +13,7 @@ impl Plugin for MapPlugin {
             .add_systems(Update, check_map_info)
             .add_plugins(InteractionPlugin)
             .add_systems(Update, camera_change)
-            .add_systems(Update, (bbox_system, respawn_map))
+            .add_systems(Update, (bbox_system, respawn_map, respawn_selection))
             .add_systems(FixedUpdate, read_map_receiver)
             .insert_resource(PersistentInfoWindows::default())
             .insert_resource(MapBundle::new(STARTING_LONG_LAT.x, STARTING_LONG_LAT.y, SCALE))

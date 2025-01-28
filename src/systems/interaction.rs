@@ -1,11 +1,12 @@
-use bevy::{prelude::*, state::commands, utils::HashMap, window::PrimaryWindow};
+use bevy::{input::mouse::MouseMotion, prelude::*, state::commands, utils::HashMap, window::PrimaryWindow};
 use bevy_egui::{egui, EguiContexts};
 use bevy_pancam::PanCam;
-use bevy_prototype_lyon::prelude::*;
+use bevy_prototype_lyon::{prelude::*, shapes::RoundedPolygon};
+use rstar::{RTree, AABB};
 
-use crate::map::{MapBundle, MapFeature};
+use crate::map::{world_space_rect_to_lat_long, MapBundle, MapFeature, WorldSpaceRect, SCALE, STARTING_LONG_LAT};
 
-use super::OccupiedScreenSpace;
+use super::{map, OccupiedScreenSpace};
 
 pub struct InteractionPlugin;
 
@@ -32,20 +33,6 @@ impl Default for SelectionBox {
     }
 }
 
-impl SelectionBox {
-    pub fn as_rect(&self) -> Option<geo::Rect<f32>> {
-        if self.start.is_some() && self.end.is_some() {
-            Some(geo::Rect::new(geo::coord! {
-                x: self.start.unwrap().x, y: self.start.unwrap().y
-            }, geo::coord! {
-                x: self.end.unwrap().x, y: self.end.unwrap().y
-            }))
-        } else {
-            None
-        }
-    }
-}
-
 /// Handles keyboard input and updates map features accordingly.
 pub fn handle_keyboard(
     keys: Res<ButtonInput<KeyCode>>,
@@ -66,6 +53,7 @@ pub fn handle_mouse(
     occupied_screen_space: Res<OccupiedScreenSpace>,
     mut q_pancam: Query<&mut PanCam>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    mut evr_motion: EventReader<MouseMotion>,
     mut persistent_info_windows: ResMut<PersistentInfoWindows>,
 ) {
     let window = q_windows.single();
@@ -87,9 +75,6 @@ pub fn handle_mouse(
                 }
             }
         }
-    } else if buttons.just_released(MouseButton::Left) {
-        selection_box.start = None;
-        selection_box.end = None;
     } else if buttons.pressed(MouseButton::Left) {
         if let Some(cursor_pos) = window.cursor_position() {
             if cursor_pos.x.is_finite() && cursor_pos.y.is_finite() {
@@ -125,40 +110,66 @@ pub fn init_selection_box(mut commands: Commands) {
 pub fn draw_selection_box(
     mut commands: Commands,
     selection: Res<SelectionBox>,
+    mut map_bundle: ResMut<MapBundle>,
     query: Query<Entity, With<SelectionBoxSelector>>,
 ) {
-
     if selection.is_changed() {
-
-        
         if let Some(start) = selection.start {
             if let Some(end) = selection.end {
+                let shape: RoundedPolygon;
                 if start == end {
-                    return;
+                    shape = shapes::RoundedPolygon {
+                        points: vec![
+                            Vec2::new(start.x - 5.5, start.y - 5.5),
+                            Vec2::new(end.x + 5.5, start.y - 5.5),
+                            Vec2::new(end.x  + 5.5, end.y + 5.5),
+                            Vec2::new(start.x- 5.5, end.y + 5.5),
+                        ],
+                        radius: 5.0,
+                        closed: true,
+                    };
+                } else {
+                    shape = shapes::RoundedPolygon {
+                        points: vec![
+                            Vec2::new(start.x- 5.5, start.y- 5.5),
+                            Vec2::new(end.x, start.y- 5.5),
+                            Vec2::new(end.x, end.y),
+                            Vec2::new(start.x- 5.5, end.y),
+                        ],
+                        radius: 5.0,
+                        closed: true,
+                    };
                 }
+
+                let select_box = world_space_rect_to_lat_long(WorldSpaceRect {
+                    left: (start.x- 5.5).min(end.x),
+                    right: (start.x- 5.5).max(end.x),
+                    bottom: (start.y- 5.5).min(end.y),
+                    top: (start.y- 5.5).max(end.y),
+                }, SCALE, STARTING_LONG_LAT.x, STARTING_LONG_LAT.y);
+     
+                let viewport_aabb = AABB::from_corners(
+                    [select_box.bottom as f64, select_box.left as f64], // Ensure correct order
+                    [select_box.top as f64, select_box.right as f64],   // Ensure correct order
+                );
+                
+                map_bundle.selected_features = map_bundle.features.locate_in_envelope_intersecting(&viewport_aabb).cloned().collect::<Vec<_>>();
+                map_bundle.respawn_selected_features = true;
+
                 for entity in query.iter() {
                     commands.entity(entity).despawn();
                 }
-                let shape = shapes::RoundedPolygon {
-                    points: vec![
-                        Vec2::new(start.x, start.y),
-                        Vec2::new(end.x, start.y),
-                        Vec2::new(end.x, end.y),
-                        Vec2::new(start.x, end.y),
-                    ],
-                    radius: 5.0,
-                    closed: true,
-                };
     
                 commands.spawn((ShapeBundle {
                     path: GeometryBuilder::build_as(&shape),
                     transform: Transform::from_xyz(0.0, 0.0, 1000.),
                     ..default()
-                },
-                Fill::color(Srgba { red: 0.0, green: 0.00, blue: 0.500, alpha: 0.25 }),
-                Stroke::new(Srgba { red: 0.0, green: 0.00, blue: 0.500, alpha: 0.5 }, 2.5 as f32),
-                SelectionBoxSelector
+                    },
+                    Fill::color(Srgba { red: 0.0, green: 0.00, blue: 0.500, alpha: 0.25 }),
+                    Stroke::new(Srgba { red: 0.0, green: 0.00, blue: 0.500, alpha: 0.5 }, 2.5 as f32),
+                    SelectionBoxSelector
                 ));
+
             }
         }
     }

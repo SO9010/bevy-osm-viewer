@@ -73,8 +73,8 @@ fn send_overpass_query(query: String, map_bundle: &mut MapBundle,
     if query.is_empty() {
         return vec![];
     }
-    // let url = "https://overpass-api.de/api/interpreter";
-    let url = "http://localhost:12345/api/interpreter";
+    let url = "https://overpass-api.de/api/interpreter";
+    // let url = "http://localhost:12345/api/interpreter";
     info!("Sending query: {}", query);
     let mut status = 429;
     while status == 429 {

@@ -68,56 +68,176 @@ pub fn respawn_map(
             let mut closed = true;
             for ((cat, key), _) in &feature_groups {
                 if key != "*" && feature.properties.get(cat.to_lowercase()).map_or(false, |v| *v == *key.to_lowercase()) {
-                                    let color = overpass_settings.categories.get(cat).unwrap().items.get(key).unwrap().1;
-                                    fill_color = Some(Srgba { red: (color.r() as f32) / 255., green: (color.g() as f32) / 255., blue: (color.b() as f32) / 255., alpha: 1.0 });
-                                    stroke_color = Srgba { red: (color.r() as f32) / 210., green: (color.g() as f32) / 210., blue: (color.b() as f32) / 210., alpha: 1.0 };
-                                    if cat == "Highway" || cat == "Railway" {
-                                        fill_color = None;
-                                        line_width = 2.5;
-                                        elevation = 0.;
-                
-                                        // When zoomed out we should make the primary roads bigger, and the motorways even bigger.
-                                        if feature.properties.get("highway").map_or(false, |v| v == "residential" || v == "primary" || v == "secondary" || v == "tertiary") {
-                                            line_width = 5.5;
-                                        }
-                                        
-                
-                                        feature.properties.get("est_width").map_or((), |v| {
-                                            // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
-                                        });
-                                    }
+                    let color = overpass_settings.categories.get(cat).unwrap().items.get(key).unwrap().1;
+                    fill_color = Some(Srgba { red: (color.r() as f32) / 255., green: (color.g() as f32) / 255., blue: (color.b() as f32) / 255., alpha: 1.0 });
+                    stroke_color = Srgba { red: (color.r() as f32) / 210., green: (color.g() as f32) / 210., blue: (color.b() as f32) / 210., alpha: 1.0 };
+                    if cat == "Highway" || cat == "Railway" {
+                        fill_color = None;
+                        line_width = 2.5;
+                        elevation = 0.;
 
-                                    let mut points = feature.get_in_world_space();
-                                    points.pop();                            
-                                        
-                                    let shape = shapes::Polygon {
-                                        points: points.clone(),
-                                        closed: false,
-                                    };
+                    // When zoomed out we should make the primary roads bigger, and the motorways even bigger.
+                    if feature.properties.get("highway").map_or(false, |v| v == "residential" || v == "primary" || v == "secondary" || v == "tertiary") {
+                        line_width = 5.5;
+                    }
+                    
+                    feature.properties.get("est_width").map_or((), |v| {
+                        // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
+                    });
+
+                }
+
+                    if map_bundle.selected_features.contains(feature) {
+                        line_width *= 1.25;
+                        stroke_color = Srgba { red: 2.5, green: 2.5, blue: 2.5, alpha: 1.0 };
+                    } 
+                    let mut points = feature.get_in_world_space();
+                    points.pop();                            
+
+        
+                    if let Some(fill) = fill_color {
+                        let shape = shapes::Polygon {
+                            points: points.clone(),
+                            closed: true,
+                        };
+                        batch_commands_closed.push((
+                            ShapeBundle {
+                                path: GeometryBuilder::build_as(&shape),
+                                transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                ..default()
+                            },
+                            Fill::color(fill),
+                            Stroke::new(stroke_color, line_width as f32),
+                            feature.clone(),
+                        ));
+                    } else {
+                        let shape = shapes::Polygon {
+                            points: points.clone(),
+                            closed: false,
+                        };
+                        batch_commands_open.push((
+                            ShapeBundle {
+                                path: GeometryBuilder::build_as(&shape),
+                                transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                ..default()
+                            },
+                            Stroke::new(stroke_color, line_width as f32),
+                            feature.clone(),
+                        ));
+                    }
+                }
+            }
+        }
+
+        commands.spawn_batch(batch_commands_closed);
+        commands.spawn_batch(batch_commands_open);
+    }
+}
+
+
+pub fn respawn_selection(
+    mut commands: Commands,
+    shapes_query: Query<(Entity, &Path, &GlobalTransform, &MapFeature)>,
+    overpass_settings: Res<SettingsOverlay>,
+    mut map_bundle: ResMut<MapBundle>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    primary_window_query: Query<&Window, With<PrimaryWindow>>,
+    query: Query<&mut OrthographicProjection, With<Camera>>,
+) {
+    if map_bundle.respawn_selected_features {
+        info!("Respawning selected features...");
+        map_bundle.respawn_selected_features = false;
+
+        for (entity, _, _, mapfeats) in shapes_query.iter() {
+            map_bundle.selected_features.iter().for_each(|f| {
+                if mapfeats == f {
+                    commands.entity(entity).despawn_recursive();
+                }
+            });
+        }
+
+        let mut batch_commands_closed: Vec<(ShapeBundle, Fill, Stroke, MapFeature)> = Vec::new();
+        let mut batch_commands_open: Vec<(ShapeBundle, Stroke, MapFeature)> = Vec::new();
+
+        // Determine the viewport bounds
+        let (_, camera_transform) = camera_query.single();
+        let window = primary_window_query.single();
+
+        let disabled_setting = overpass_settings.get_disabled_categories();
+        let enabled_setting = overpass_settings.get_true_keys_with_category_with_individual();
+
+        // Group features by category and key, the string is thing to look for
+        // (cat, key)
+        let mut feature_groups: HashMap<(String, String), Vec<&MapFeature>> = HashMap::new();
+        
+        for feature in &map_bundle.selected_features {
+            for (cat, key) in &enabled_setting {
+                if !disabled_setting.contains(cat) {
+                    feature_groups.entry((cat.to_string(), key.to_string())).or_default().push(feature);
+                }
+            }
+        }
+        
+        for feature in &map_bundle.selected_features {
+            let mut fill_color= Some(Srgba { red: 0.4, green: 0.400, blue: 0.400, alpha: 1.0 });
+            let mut stroke_color = Srgba { red: 0.50, green: 0.500, blue: 0.500, alpha: 1.0 };
+            let mut line_width = 1.0;
+            let mut elevation = 1.0;
+            let mut closed = true;
+            for ((cat, key), _) in &feature_groups {
+                if key != "*" && feature.properties.get(cat.to_lowercase()).map_or(false, |v| *v == *key.to_lowercase()) {
+                    let color = overpass_settings.categories.get(cat).unwrap().items.get(key).unwrap().1;
+                    fill_color = Some(Srgba { red: (color.r() as f32) / 255., green: (color.g() as f32) / 255., blue: (color.b() as f32) / 255., alpha: 1.0 });
+                    stroke_color = Srgba { red: (color.r() as f32) / 210., green: (color.g() as f32) / 210., blue: (color.b() as f32) / 210., alpha: 1.0 };
+                    if cat == "Highway" || cat == "Railway" {
+                        fill_color = None;
+                        line_width = 2.5;
+                        elevation = 0.;
+
+                    // When zoomed out we should make the primary roads bigger, and the motorways even bigger.
+                    if feature.properties.get("highway").map_or(false, |v| v == "residential" || v == "primary" || v == "secondary" || v == "tertiary") {
+                        line_width = 5.5;
+                    }
+                    
+                    feature.properties.get("est_width").map_or((), |v| {
+                        // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
+                    });
+
+                }
+
+                    line_width *= 1.25;
+                    stroke_color = Srgba { red: 2.5, green: 2.5, blue: 2.5, alpha: 1.0 };
+                    let mut points = feature.get_in_world_space();
+                    points.pop();                            
                         
-                                    if let Some(fill) = fill_color {
-                                        batch_commands_closed.push((
-                                            ShapeBundle {
-                                                path: GeometryBuilder::build_as(&shape),
-                                                transform: Transform::from_xyz(0.0, 0.0, elevation),
-                                                ..default()
-                                            },
-                                            Fill::color(fill),
-                                            Stroke::new(stroke_color, line_width as f32),
-                                            feature.clone(),
-                                        ));
-                                    } else {
-                                        batch_commands_open.push((
-                                            ShapeBundle {
-                                                path: GeometryBuilder::build_as(&shape),
-                                                transform: Transform::from_xyz(0.0, 0.0, elevation),
-                                                ..default()
-                                            },
-                                            Stroke::new(stroke_color, line_width as f32),
-                                            feature.clone(),
-                                        ));
-                                    }
-                                }
+                    let shape = shapes::Polygon {
+                        points: points.clone(),
+                        closed: false,
+                    };
+        
+                    if let Some(fill) = fill_color {
+                        batch_commands_closed.push((
+                            ShapeBundle {
+                                path: GeometryBuilder::build_as(&shape),
+                                transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                ..default()
+                            },
+                            Fill::color(fill),
+                            Stroke::new(stroke_color, line_width as f32),
+                            feature.clone(),
+                        ));
+                    } else {
+                        batch_commands_open.push((
+                            ShapeBundle {
+                                path: GeometryBuilder::build_as(&shape),
+                                transform: Transform::from_xyz(0.0, 0.0, elevation),
+                                ..default()
+                            },
+                            Stroke::new(stroke_color, line_width as f32),
+                            feature.clone(),
+                        ));
+                    }
+                }
             }
         }
 

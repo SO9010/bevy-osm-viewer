@@ -7,7 +7,7 @@ use rstar::{RTree, RTreeObject, AABB};
 pub const STARTING_LONG_LAT: Vec2 = Vec2::new(0.1494117, 52.192_37);
 pub const SCALE: f32 = 10000000.0;
 
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct MapFeature {
     pub id: String,
     pub properties: serde_json::Value,  // Use serde_json for flexible properties such as buidling type
@@ -237,19 +237,21 @@ impl SpatialIndex {
 pub struct MapPoints {
     pub spatial_index: SpatialIndex,
     pub refrencee_point: RefrencePoint, // Refrence point of the map, this is used to calculate the scale and offset
+    pub scale: f32,
 }
 
 #[derive(Resource, Clone, Debug)]
 pub struct MapBundle {
     /// A collection of map features, please put this in a spatial hashmap
     pub features: RTree<MapFeature>,
+    pub selected_features: Vec<MapFeature>,
 
     /// Map points of the map, this is used to calculate the scale and offset
     pub map_points: MapPoints,
 
-    /// Global scale for rendering (used for Mercator projection)
-    pub scale: f32,
+    pub features_to_respawn: Vec<MapFeature>,
 
+    pub respawn_selected_features: bool,
     pub respawn: bool,
     pub get_more_data: bool,
 }
@@ -259,11 +261,14 @@ impl MapBundle {
     pub fn new(long: f32, lat: f32, scale: f32) -> Self {
         Self {
             features: RTree::new(),
+            selected_features: Vec::new(),
+            features_to_respawn: Vec::new(),
             map_points: MapPoints {
                 refrencee_point: RefrencePoint::new(long, lat),
                 spatial_index: SpatialIndex::new(),
+                scale,
             },
-            scale,
+            respawn_selected_features: false,
             respawn: false,
             get_more_data: false,
         }
@@ -271,6 +276,6 @@ impl MapBundle {
 
     // Method to apply a Mercator projection to a coordinate, otherwise the coordinates will be too small to be rendered
     pub fn lat_lon_to_mercator(&self, lat: f32, lon: f32) -> Vec2 {
-        lat_lon_to_world_mercator(lat, lon, self.scale, self.map_points.refrencee_point.long, self.map_points.refrencee_point.lat)
+        lat_lon_to_world_mercator(lat, lon, self.map_points.scale, self.map_points.refrencee_point.long, self.map_points.refrencee_point.lat)
     }
 }
