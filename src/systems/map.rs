@@ -144,18 +144,22 @@ pub fn respawn_selection(
     primary_window_query: Query<&Window, With<PrimaryWindow>>,
     query: Query<&mut OrthographicProjection, With<Camera>>,
 ) {
-    if map_bundle.respawn_selected_features {
+    if map_bundle.respawn_specific_features {
         info!("Respawning selected features...");
-        map_bundle.respawn_selected_features = false;
+        map_bundle.respawn_specific_features = false;
 
+        info!("{}", map_bundle.features_to_respawn.len());
         for (entity, _, _, mapfeats) in shapes_query.iter() {
-            map_bundle.selected_features.iter().for_each(|f| {
+            map_bundle.features_to_respawn.iter().for_each(|f| {
                 if mapfeats == f {
-                    commands.entity(entity).despawn_recursive();
+                    if commands.get_entity(entity).is_some() {
+                        commands.entity(entity).despawn_recursive();
+                    } else {
+                        warn!("Entity {:?} does not exist in the world", entity);
+                    }
                 }
             });
         }
-
         let mut batch_commands_closed: Vec<(ShapeBundle, Fill, Stroke, MapFeature)> = Vec::new();
         let mut batch_commands_open: Vec<(ShapeBundle, Stroke, MapFeature)> = Vec::new();
 
@@ -170,7 +174,7 @@ pub fn respawn_selection(
         // (cat, key)
         let mut feature_groups: HashMap<(String, String), Vec<&MapFeature>> = HashMap::new();
         
-        for feature in &map_bundle.selected_features {
+        for feature in &map_bundle.features_to_respawn {
             for (cat, key) in &enabled_setting {
                 if !disabled_setting.contains(cat) {
                     feature_groups.entry((cat.to_string(), key.to_string())).or_default().push(feature);
@@ -178,7 +182,7 @@ pub fn respawn_selection(
             }
         }
         
-        for feature in &map_bundle.selected_features {
+        for feature in &map_bundle.features_to_respawn.clone() {
             let mut fill_color= Some(Srgba { red: 0.4, green: 0.400, blue: 0.400, alpha: 1.0 });
             let mut stroke_color = Srgba { red: 0.50, green: 0.500, blue: 0.500, alpha: 1.0 };
             let mut line_width = 1.0;
@@ -203,10 +207,13 @@ pub fn respawn_selection(
                         // line_width = v.as_str().unwrap().replace("\"", "").parse::<f64>().unwrap() as f64;
                     });
 
-                }
+                    }
 
-                    line_width *= 1.25;
-                    stroke_color = Srgba { red: 2.5, green: 2.5, blue: 2.5, alpha: 1.0 };
+                    if map_bundle.selected_features.contains(feature) {
+                        line_width *= 1.25;
+                        stroke_color = Srgba { red: 2.5, green: 2.5, blue: 2.5, alpha: 1.0 };
+                    } 
+
                     let mut points = feature.get_in_world_space();
                     points.pop();                            
                         
@@ -240,10 +247,10 @@ pub fn respawn_selection(
                 }
             }
         }
-
         commands.spawn_batch(batch_commands_closed);
         commands.spawn_batch(batch_commands_open);
     }
+    map_bundle.features_to_respawn = vec![];
 }
 
 #[derive(Resource, Deref)]

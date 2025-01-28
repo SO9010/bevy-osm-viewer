@@ -251,7 +251,7 @@ pub struct MapBundle {
 
     pub features_to_respawn: Vec<MapFeature>,
 
-    pub respawn_selected_features: bool,
+    pub respawn_specific_features: bool,
     pub respawn: bool,
     pub get_more_data: bool,
 }
@@ -268,7 +268,7 @@ impl MapBundle {
                 spatial_index: SpatialIndex::new(),
                 scale,
             },
-            respawn_selected_features: false,
+            respawn_specific_features: false,
             respawn: false,
             get_more_data: false,
         }

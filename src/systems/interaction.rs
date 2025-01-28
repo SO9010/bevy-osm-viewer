@@ -153,9 +153,13 @@ pub fn draw_selection_box(
                     [select_box.top as f64, select_box.right as f64],   // Ensure correct order
                 );
                 
-                map_bundle.selected_features = map_bundle.features.locate_in_envelope_intersecting(&viewport_aabb).cloned().collect::<Vec<_>>();
-                map_bundle.respawn_selected_features = true;
-
+                let selected_features_clone = map_bundle.selected_features.clone();
+                map_bundle.features_to_respawn.extend(selected_features_clone);
+                let in_selection = map_bundle.features.locate_in_envelope_intersecting(&viewport_aabb).cloned().collect::<Vec<_>>();
+                map_bundle.selected_features = in_selection.clone();
+                map_bundle.respawn_specific_features = true;
+                map_bundle.features_to_respawn.extend(in_selection.clone());
+                
                 for entity in query.iter() {
                     commands.entity(entity).despawn();
                 }
